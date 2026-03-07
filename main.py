@@ -5,16 +5,23 @@ from fpdf import FPDF
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Gestionnaire de Dépenses", layout="centered")
 
-# CSS pour masquer le menu Streamlit et le footer
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             header {visibility: hidden;}
+            .st-emotion-cache-zq5wms {visibility: visible !important;}
+            
+            /* Bloquer le glisser-pour-actualiser sur mobile */
+            body {
+                overscroll-behavior-y: contain;
+            }
+            html {
+                overscroll-behavior-y: contain;
+            }
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
-
 # --- 1. INITIALISATION ---
 FILE_CLIENTS = 'clients.csv'
 FILE_DATA = 'historique_complet.csv'
@@ -145,12 +152,25 @@ if st.session_state.page == "ACCEUIL":
         if c3.button("👤 USER ADM"): st.session_state.page = "VERIF_USER_ADM"; st.rerun()
 
         st.write("---")
-        if st.button("❌ CLOSE APP", use_container_width=True): st.session_state.confirm_close = True
-        if st.session_state.get('confirm_close'):
-            st.warning("Quitter l'application ?")
-            if st.button("✅ OUI"): st.stop()
-            if st.button("❌ NON"): st.session_state.confirm_close = False; st.rerun()
+        # --- BOUTON DE SORTIE SÉCURISÉ ---
+if 'confirm_exit' not in st.session_state:
+    st.session_state.confirm_exit = False
 
+if not st.session_state.confirm_exit:
+    if st.button("❌ Quitter l'application"):
+        st.session_state.confirm_exit = True
+        st.rerun()
+else:
+    st.warning("Êtes-vous sûr de vouloir fermer l'application ?")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ Oui, Quitter"):
+            st.success("Déconnexion réussie. Fermez votre onglet.")
+            st.stop()
+    with col2:
+        if st.button("↩️ Annuler"):
+            st.session_state.confirm_exit = False
+            st.rerun()
 # --- 5. INTERFACE : MAIN_APP ---
 elif st.session_state.page == "MAIN_APP":
     df_h = pd.read_csv(FILE_DATA)
