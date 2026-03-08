@@ -161,6 +161,8 @@ if not st.session_state.confirm_exit:
         st.session_state.confirm_exit = True
         st.rerun()
 else:
+   # --- AJOUTEZ CETTE LIGNE ICI (vérifiez l'alignement avec le 'if' de la ligne 175 plus bas)
+if st.session_state.get('confirm_exit', False):
     st.warning("Êtes-vous sûr de vouloir fermer l'application ?")
     col1, col2 = st.columns(2)
     with col1:
@@ -171,8 +173,11 @@ else:
         if st.button("↩️ Annuler"):
             st.session_state.confirm_exit = False
             st.rerun()
-# --- 5. INTERFACE : MAIN_APP ---
+
+# --- COMMENCEZ LA SUITE AVEC UN 'ELIF' (comme sur votre image ligne 175)
 elif st.session_state.page == "MAIN_APP":
+    df_h = pd.read_csv(FILE_DATA)
+ elif st.session_state.page == "MAIN_APP":
     df_h = pd.read_csv(FILE_DATA)
     user_recs = df_h[df_h['Utilisateur'] == st.session_state.current_user]
 
