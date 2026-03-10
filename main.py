@@ -142,6 +142,7 @@ if 'inputs_locked' not in st.session_state: st.session_state.inputs_locked = Tru
 if 'confirm_exit' not in st.session_state: st.session_state.confirm_exit = False
 if 'show_extend_table' not in st.session_state: st.session_state.show_extend_table = False
 if 'current_user' not in st.session_state: st.session_state.current_user = None
+if 'show_menu' not in st.session_state: st.session_state.show_menu = False
 
 # --- 4. LOGIQUE DE FERMETURE (QUITTER L'APP) ---
 if st.session_state.confirm_exit:
@@ -292,124 +293,119 @@ elif st.session_state.page == "MAIN_APP":
     df_h = pd.read_csv(FILE_DATA)
     user_recs = df_h[df_h['Utilisateur'] == st.session_state.current_user]
     
-    # --- BARRE LATÉRALE (SIDEBAR) ---
-    with st.sidebar:
-        st.markdown(f"<h2 style='color:#1E88E5;'>👤 {st.session_state.current_user}</h2>", unsafe_allow_html=True)
+    # --- BOUTON DE CONTRÔLE (MENU / RETOUR) ---
+    # Ce bouton reste toujours visible en haut pour basculer entre les deux vues
+    if not st.session_state.show_menu:
+        if st.button("➡️ OUVRIR LE MENU"):
+            st.session_state.show_menu = True
+            st.rerun()
+    else:
+        if st.button("⬅️ RETOUR AU BULLETIN"):
+            st.session_state.show_menu = False
+            st.rerun()
+
+    st.write("---")
+
+    # --- LOGIQUE D'AFFICHAGE EXCLUSIF ---
+    
+    if st.session_state.show_menu:
+        # --- INTERFACE 1 : LE MENU ---
+        st.markdown("<h2 style='color: #1E88E5;'>📋 MENU DE GESTION</h2>", unsafe_allow_html=True)
+        st.info(f"Utilisateur connecté : {st.session_state.current_user}")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # SÉLECTION DU MOIS
+            if st.button("📅 SELECT MONTH", use_container_width=True):
+                st.session_state.show_date_picker = not st.session_state.get('show_date_picker', False)
+            
+            if st.session_state.get('show_date_picker'):
+                with st.container(border=True):
+                    m_list = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+                    m_c = st.selectbox("Mois", m_list)
+                    a_c = st.selectbox("Année", [str(a) for a in range(2024, 2036)])
+                    versions = user_recs[(user_recs['Mois'].str.startswith(m_c)) & (user_recs['Annee'].astype(str) == a_c)]
+                    v_choisie = st.selectbox("Versions", versions['Mois'].tolist()) if not versions.empty and len(versions) > 1 else m_c
+                    
+                    if st.button("✅ CONFIRMER"):
+                        st.session_state.update({'sel_mois_base': m_c, 'sel_annee': a_c, 'show_date_picker': False, 'show_menu': False})
+                        if not versions.empty:
+                            target = versions[versions['Mois'] == v_choisie].iloc[0]
+                            st.session_state.update({
+                                'sel_mois_affiche': target['Mois'], 'n_rev': target['Revenu'], 
+                                'n_loy': target['Loyer'], 'n_sco': target['Scolarite'], 
+                                'n_rat': target['Ration'], 'n_det': target['Dette'], 
+                                'n_poc': target['Poche'], 'n_ast': target['Assistance'], 
+                                'n_aut': target['Autres'], 'inputs_locked': True
+                            })
+                        else:
+                            st.session_state.update({'sel_mois_affiche': m_c, 'inputs_locked': False})
+                            for k in ["n_rev", "n_loy", "n_sco", "n_rat", "n_det", "n_poc", "n_ast", "n_aut"]: st.session_state[k] = 0
+                        st.rerun()
+
+        with col2:
+            # IMPRESSION PDF
+            if st.button("🖨️ PRINT (BULLETIN)", use_container_width=True):
+                st.session_state.show_print_ui = not st.session_state.get('show_print_ui', False)
+            
+            if st.session_state.get('show_print_ui'):
+                choix_pdf = st.selectbox("Version à imprimer", user_recs['Mois'].tolist()) if not user_recs.empty else None
+                if choix_pdf:
+                    pdf_bytes = create_pdf(user_recs[user_recs['Mois'] == choix_pdf].iloc[0])
+                    st.download_button("📥 Télécharger", pdf_bytes, f"Bulletin_{choix_pdf}.pdf", "application/pdf")
+
         st.write("---")
-        
-        # SÉLECTION DU MOIS
-        if st.button("📅 SELECT MONTH", use_container_width=True):
-            st.session_state.show_date_picker = not st.session_state.get('show_date_picker', False)
-        
-        if st.session_state.get('show_date_picker'):
-            with st.container(border=True):
-                m_list = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
-                m_c = st.selectbox("Mois", m_list)
-                a_c = st.selectbox("Année", [str(a) for a in range(2024, 2036)])
-                
-                # Filtrer les versions existantes
-                versions = user_recs[(user_recs['Mois'].str.startswith(m_c)) & (user_recs['Annee'].astype(str) == a_c)]
-                v_choisie = st.selectbox("Versions disponibles", versions['Mois'].tolist()) if not versions.empty and len(versions) > 1 else m_c
-                
-                if st.button("✅ CONFIRMER"):
-                    st.session_state.update({'sel_mois_base': m_c, 'sel_annee': a_c, 'show_date_picker': False})
-                    if not versions.empty:
-                        target = versions[versions['Mois'] == v_choisie].iloc[0]
-                        st.session_state.update({
-                            'sel_mois_affiche': target['Mois'],
-                            'n_rev': target['Revenu'], 'n_loy': target['Loyer'],
-                            'n_sco': target['Scolarite'], 'n_rat': target['Ration'],
-                            'n_det': target['Dette'], 'n_poc': target['Poche'],
-                            'n_ast': target['Assistance'], 'n_aut': target['Autres'],
-                            'inputs_locked': True, 'last_version_name': versions.iloc[-1]['Mois']
-                        })
-                    else:
-                        st.session_state.update({'sel_mois_affiche': m_c, 'inputs_locked': False, 'last_version_name': m_c})
-                        for k in ["n_rev", "n_loy", "n_sco", "n_rat", "n_det", "n_poc", "n_ast", "n_aut"]: st.session_state[k] = 0
-                    st.rerun()
-        
-        # ADMINISTRATION ACCÈS DONNÉES
-        if st.button("🛡️ ADM (DATA ACCESS)", use_container_width=True):
-            st.session_state.ask_adm_main = not st.session_state.get('ask_adm_main', False)
-        
-        if st.session_state.get('ask_adm_main'):
-            p_adm = st.text_input("Code ADM / PRINT", type="password")
-            if st.button("Valider"):
-                if str(p_adm).strip() == st.session_state.user_pw_adm_extra:
-                    st.session_state.page = "VIEW_BASE"
-                    st.rerun()
-                else:
-                    st.error("Accès refusé.")
-        
-        # IMPRESSION PDF
-        if st.button("🖨️ PRINT (BULLETIN)", use_container_width=True):
-            st.session_state.show_print_ui = not st.session_state.get('show_print_ui', False)
-        
-        if st.session_state.get('show_print_ui'):
-            choix_pdf = st.selectbox("Choisir une version", user_recs['Mois'].tolist()) if not user_recs.empty else None
-            if choix_pdf:
-                pdf_bytes = create_pdf(user_recs[user_recs['Mois'] == choix_pdf].iloc[0])
-                st.download_button("📥 Télécharger PDF", pdf_bytes, f"Bulletin_{choix_pdf}.pdf", "application/pdf", use_container_width=True)
-        
-        # PROGRESSION ET DÉCONNEXION
-        if st.button("📈 PROGRESS", use_container_width=True):
+        # ADMINISTRATION ET AUTRES
+        c_adm, c_prog, c_deco = st.columns(3)
+        if c_adm.button("🛡️ ADMIN DATA"):
+            st.session_state.page = "VIEW_BASE"
+            st.rerun()
+        if c_prog.button("📈 PROGRESSION"):
             st.session_state.page = "PROGRESS"
             st.rerun()
-        
-        st.write("---")
-        if st.button("🟦 DÉCONNEXION", use_container_width=True):
+        if c_deco.button("🟦 DÉCONNEXION"):
             st.session_state.clear()
             st.rerun()
 
-    # --- INTERFACE DE SAISIE DES DONNÉES ---
-    with st.container(border=True):
-        st.markdown("<h1 style='text-align: center; color: #2E7D32;'>💰 BULLETIN DES DEPENSES</h1>", unsafe_allow_html=True)
-        
-        # Bouton Modifier
-        if st.session_state.get('sel_mois_base') and st.session_state.inputs_locked:
-            if st.button("📝 ACTIVER LA MODIFICATION", use_container_width=True):
-                st.session_state.ask_u = not st.session_state.get('ask_u', False)
+    else:
+        # --- INTERFACE 2 : LE BULLETIN DE DÉPENSES ---
+        with st.container(border=True):
+            st.markdown("<h1 style='text-align: center; color: #2E7D32;'>💰 BULLETIN DES DEPENSES</h1>", unsafe_allow_html=True)
             
-            if st.session_state.get('ask_u'):
-                pwd_mod = st.text_input("Vérification Password OPEN/MODIFY", type="password")
-                if st.button("Débloquer les champs"):
-                    if pwd_mod == st.session_state.user_pw_open:
-                        st.session_state.inputs_locked = False
-                        st.rerun()
-                    else:
-                        st.error("Mot de passe incorrect.")
+            # Gestion du déverrouillage
+            if st.session_state.get('sel_mois_base') and st.session_state.inputs_locked:
+                if st.button("📝 MODIFIER LES DONNÉES", use_container_width=True):
+                    st.session_state.inputs_locked = False
+                    st.rerun()
 
-        L = st.session_state.inputs_locked
-        col_m, col_a = st.columns(2)
-        col_m.text_input("MOIS EN COURS", value=st.session_state.get('sel_mois_affiche',''), disabled=True)
-        col_a.text_input("ANNÉE", value=st.session_state.get('sel_annee',''), disabled=True)
-        
-        st.write("### Entrées financières")
-        st.session_state.n_rev = st.number_input("REVENU MENSUEL GLOBAL ($)", value=int(st.session_state.get('n_rev',0)), disabled=L)
-        
-        st.write("### Ventilation des dépenses")
-        c1, c2 = st.columns(2)
-        st.session_state.n_loy = c1.number_input("LOYER & CHARGES", value=int(st.session_state.get('n_loy',0)), disabled=L)
-        st.session_state.n_sco = c1.number_input("SCOLARITÉ / ÉTUDES", value=int(st.session_state.get('n_sco',0)), disabled=L)
-        st.session_state.n_rat = c1.number_input("RATION ALIMENTAIRE", value=int(st.session_state.get('n_rat',0)), disabled=L)
-        
-        st.session_state.n_det = c2.number_input("REMBOURSEMENT DETTES", value=int(st.session_state.get('n_det',0)), disabled=L)
-        st.session_state.n_poc = c2.number_input("ARGENT DE POCHE", value=int(st.session_state.get('n_poc',0)), disabled=L)
-        st.session_state.n_ast = c2.number_input("ASSISTANCE / DONS", value=int(st.session_state.get('n_ast',0)), disabled=L)
-        
-        st.session_state.n_aut = st.number_input("AUTRES DÉPENSES IMPRÉVUES", value=int(st.session_state.get('n_aut',0)), disabled=L)
-        
-        st.write("---")
-        if st.button("🚀 CALCULER ET VOIR LES RÉSULTATS", use_container_width=True, type="primary"):
-            st.session_state.total_dep = sum([
-                st.session_state.n_loy, st.session_state.n_sco, st.session_state.n_rat, 
-                st.session_state.n_det, st.session_state.n_poc, st.session_state.n_ast, 
-                st.session_state.n_aut
-            ])
-            st.session_state.epargne = st.session_state.n_rev - st.session_state.total_dep
-            st.session_state.page = 'RESULTATS'
-            st.rerun()
-
+            L = st.session_state.inputs_locked
+            col_m, col_a = st.columns(2)
+            col_m.text_input("MOIS EN COURS", value=st.session_state.get('sel_mois_affiche',''), disabled=True)
+            col_a.text_input("ANNÉE", value=st.session_state.get('sel_annee',''), disabled=True)
+            
+            st.write("### Entrées financières")
+            st.session_state.n_rev = st.number_input("REVENU GLOBAL ($)", value=int(st.session_state.get('n_rev',0)), disabled=L)
+            
+            st.write("### Ventilation des dépenses")
+            c1, c2 = st.columns(2)
+            st.session_state.n_loy = c1.number_input("LOYER", value=int(st.session_state.get('n_loy',0)), disabled=L)
+            st.session_state.n_sco = c1.number_input("SCOLARITÉ", value=int(st.session_state.get('n_sco',0)), disabled=L)
+            st.session_state.n_rat = c1.number_input("RATION", value=int(st.session_state.get('n_rat',0)), disabled=L)
+            st.session_state.n_det = c2.number_input("DETTES", value=int(st.session_state.get('n_det',0)), disabled=L)
+            st.session_state.n_poc = c2.number_input("POCHE", value=int(st.session_state.get('n_poc',0)), disabled=L)
+            st.session_state.n_ast = c2.number_input("ASSISTANCE", value=int(st.session_state.get('n_ast',0)), disabled=L)
+            
+            st.session_state.n_aut = st.number_input("AUTRES", value=int(st.session_state.get('n_aut',0)), disabled=L)
+            
+            if st.button("🚀 CALCULER", use_container_width=True, type="primary"):
+                if 'sel_mois_base' not in st.session_state:
+                    st.warning("Veuillez d'abord sélectionner un mois dans le MENU.")
+                else:
+                    st.session_state.total_dep = sum([st.session_state.n_loy, st.session_state.n_sco, st.session_state.n_rat, st.session_state.n_det, st.session_state.n_poc, st.session_state.n_ast, st.session_state.n_aut])
+                    st.session_state.epargne = st.session_state.n_rev - st.session_state.total_dep
+                    st.session_state.page = 'RESULTATS'
+                    st.rerun()
 # --- 10. PAGE : RÉSULTATS ---
 elif st.session_state.page == "RESULTATS":
     with st.container(border=True):
