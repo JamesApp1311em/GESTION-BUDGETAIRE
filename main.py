@@ -193,10 +193,8 @@ elif st.session_state.page == "ACCEUIL":
             st.session_state.page = "VERIF_USER_ADM"
             st.rerun()
 
+        # Le bouton "QUITTER L'APP" a été supprimé ici.
         st.write("---")
-        if st.button("❌ QUITTER L'APP", use_container_width=True):
-            st.session_state.confirm_exit = True
-            st.rerun()
 
 # --- 6. PAGE : LOGIN (CRÉATION DE COMPTE) ---
 elif st.session_state.page == "LOGIN":
@@ -294,7 +292,6 @@ elif st.session_state.page == "MAIN_APP":
     user_recs = df_h[df_h['Utilisateur'] == st.session_state.current_user]
     
     # --- BOUTON DE CONTRÔLE (MENU / RETOUR) ---
-    # Ce bouton reste toujours visible en haut pour basculer entre les deux vues
     if not st.session_state.show_menu:
         if st.button("➡️ OUVRIR LE MENU"):
             st.session_state.show_menu = True
@@ -307,7 +304,6 @@ elif st.session_state.page == "MAIN_APP":
     st.write("---")
 
     # --- LOGIQUE D'AFFICHAGE EXCLUSIF ---
-    
     if st.session_state.show_menu:
         # --- INTERFACE 1 : LE MENU ---
         st.markdown("<h2 style='color: #1E88E5;'>📋 MENU DE GESTION</h2>", unsafe_allow_html=True)
@@ -316,7 +312,6 @@ elif st.session_state.page == "MAIN_APP":
         col1, col2 = st.columns(2)
         
         with col1:
-            # SÉLECTION DU MOIS
             if st.button("📅 SELECT MONTH", use_container_width=True):
                 st.session_state.show_date_picker = not st.session_state.get('show_date_picker', False)
             
@@ -345,7 +340,6 @@ elif st.session_state.page == "MAIN_APP":
                         st.rerun()
 
         with col2:
-            # IMPRESSION PDF
             if st.button("🖨️ PRINT (BULLETIN)", use_container_width=True):
                 st.session_state.show_print_ui = not st.session_state.get('show_print_ui', False)
             
@@ -356,7 +350,6 @@ elif st.session_state.page == "MAIN_APP":
                     st.download_button("📥 Télécharger", pdf_bytes, f"Bulletin_{choix_pdf}.pdf", "application/pdf")
 
         st.write("---")
-        # ADMINISTRATION ET AUTRES
         c_adm, c_prog, c_deco = st.columns(3)
         if c_adm.button("🛡️ ADMIN DATA"):
             st.session_state.page = "VIEW_BASE"
@@ -373,13 +366,50 @@ elif st.session_state.page == "MAIN_APP":
         with st.container(border=True):
             st.markdown("<h1 style='text-align: center; color: #2E7D32;'>💰 BULLETIN DES DEPENSES</h1>", unsafe_allow_html=True)
             
-            # Gestion du déverrouillage
-            if st.session_state.get('sel_mois_base') and st.session_state.inputs_locked:
-                if st.button("📝 MODIFIER LES DONNÉES", use_container_width=True):
-                    st.session_state.inputs_locked = False
-                    st.rerun()
-
+            sel_m_base = st.session_state.get('sel_mois_base')
             L = st.session_state.inputs_locked
+
+            # --- Gestion du déverrouillage Intelligente ---
+            sel_m_base = st.session_state.get('sel_mois_base')
+            L = st.session_state.inputs_locked
+
+            if sel_m_base and L:
+                # 1. On récupère toutes les versions existantes pour ce mois/année
+                # user_recs a déjà été filtré par utilisateur au début de la page
+                versions_du_mois = user_recs[
+                    (user_recs['Mois'].str.startswith(sel_m_base)) & 
+                    (user_recs['Annee'].astype(str) == st.session_state.get('sel_annee'))
+                ]
+
+                # 2. On détermine quelle est la version la plus récente (le nombre de "Mod")
+                # Si vide, c'est une nouvelle saisie, donc on peut modifier.
+                if not versions_du_mois.empty:
+                    # On cherche le nombre maximum après "Mod"
+                    def extraire_version(nom_mois):
+                        if "Mod" in nom_mois:
+                            try:
+                                return int(nom_mois.split("Mod")[-1])
+                            except:
+                                return 0
+                        return 0
+
+                    max_version_nombre = versions_du_mois['Mois'].apply(extraire_version).max()
+                    current_version_nom = st.session_state.get('sel_mois_affiche', '')
+                    current_version_nombre = extraire_version(current_version_nom)
+
+                    # 3. Comparaison : On n'affiche le bouton que si c'est la version MAX
+                    if current_version_nombre == max_version_nombre:
+                        if st.button("📝 MODIFIER LA DERNIÈRE VERSION", use_container_width=True):
+                            st.session_state.inputs_locked = False
+                            st.rerun()
+                    else:
+                        st.warning(f"⚠️ Lecture seule : Une version plus récente existe (Mod {max_version_nombre}).")
+                else:
+                    # Si aucune donnée n'existe encore pour ce mois, on peut modifier
+                    if st.button("📝 MODIFIER LES DONNÉES", use_container_width=True):
+                        st.session_state.inputs_locked = False
+                        st.rerun()
+
             col_m, col_a = st.columns(2)
             col_m.text_input("MOIS EN COURS", value=st.session_state.get('sel_mois_affiche',''), disabled=True)
             col_a.text_input("ANNÉE", value=st.session_state.get('sel_annee',''), disabled=True)
@@ -387,7 +417,7 @@ elif st.session_state.page == "MAIN_APP":
             st.write("### Entrées financières")
             st.session_state.n_rev = st.number_input("REVENU GLOBAL ($)", value=int(st.session_state.get('n_rev',0)), disabled=L)
             
-            st.write("### Ventilation des dépenses")
+            st.write("### Les dépenses")
             c1, c2 = st.columns(2)
             st.session_state.n_loy = c1.number_input("LOYER", value=int(st.session_state.get('n_loy',0)), disabled=L)
             st.session_state.n_sco = c1.number_input("SCOLARITÉ", value=int(st.session_state.get('n_sco',0)), disabled=L)
@@ -399,17 +429,21 @@ elif st.session_state.page == "MAIN_APP":
             st.session_state.n_aut = st.number_input("AUTRES", value=int(st.session_state.get('n_aut',0)), disabled=L)
             
             if st.button("🚀 CALCULER", use_container_width=True, type="primary"):
-                if 'sel_mois_base' not in st.session_state:
+                if not st.session_state.get('sel_mois_base'):
                     st.warning("Veuillez d'abord sélectionner un mois dans le MENU.")
                 else:
-                    st.session_state.total_dep = sum([st.session_state.n_loy, st.session_state.n_sco, st.session_state.n_rat, st.session_state.n_det, st.session_state.n_poc, st.session_state.n_ast, st.session_state.n_aut])
+                    st.session_state.total_dep = sum([
+                        st.session_state.n_loy, st.session_state.n_sco, st.session_state.n_rat, 
+                        st.session_state.n_det, st.session_state.n_poc, st.session_state.n_ast, 
+                        st.session_state.n_aut
+                    ])
                     st.session_state.epargne = st.session_state.n_rev - st.session_state.total_dep
                     st.session_state.page = 'RESULTATS'
                     st.rerun()
 # --- 10. PAGE : RÉSULTATS ---
 elif st.session_state.page == "RESULTATS":
     with st.container(border=True):
-        st.markdown(f"<h2 style='text-align: center;'>📊 BILAN : {st.session_state.sel_mois_base.upper()}</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='text-align: center;'>📊 BILAN : {st.session_state.get('sel_mois_affiche', 'Non sélectionné')}</h2>", unsafe_allow_html=True)
         
         rev = st.session_state.n_rev if st.session_state.n_rev > 0 else 1
         ratio_epargne = (st.session_state.epargne / rev) * 100
@@ -425,31 +459,74 @@ elif st.session_state.page == "RESULTATS":
             
         if st.button("💾 SAUVEGARDER CETTE VERSION", use_container_width=True):
             df_hist = pd.read_csv(FILE_DATA)
-            # Gestion des versions (Mod1, Mod2...)
-            exist = df_hist[(df_hist['Utilisateur'] == st.session_state.current_user) & 
-                            (df_hist['Mois'].str.startswith(st.session_state.sel_mois_base)) & 
-                            (df_hist['Annee'].astype(str) == st.session_state.sel_annee)]
             
-            nom_version = f"{st.session_state.sel_mois_base}Mod{len(exist)}" if not exist.empty else st.session_state.sel_mois_base
-            
-            new_data = {
-                'Utilisateur': st.session_state.current_user, 'Mois': nom_version, 
-                'Annee': st.session_state.sel_annee, 'Revenu': st.session_state.n_rev, 
-                'Loyer': st.session_state.n_loy, 'Scolarite': st.session_state.n_sco, 
-                'Ration': st.session_state.n_rat, 'Dette': st.session_state.n_det, 
-                'Poche': st.session_state.n_poc, 'Assistance': st.session_state.n_ast, 
-                'Autres': st.session_state.n_aut, 'Total_Depenses': st.session_state.total_dep, 
-                'Epargne': st.session_state.epargne, 'Date_Enregistrement': pd.Timestamp.now()
+            # 1. On prépare les données actuelles pour la comparaison
+            # On convertit tout en float/str pour éviter les problèmes de type lors du check
+            current_vals = {
+                'Utilisateur': st.session_state.current_user,
+                'Annee': str(st.session_state.sel_annee),
+                'Revenu': float(st.session_state.n_rev),
+                'Loyer': float(st.session_state.n_loy),
+                'Scolarite': float(st.session_state.n_sco),
+                'Ration': float(st.session_state.n_rat),
+                'Dette': float(st.session_state.n_det),
+                'Poche': float(st.session_state.n_poc),
+                'Assistance': float(st.session_state.n_ast),
+                'Autres': float(st.session_state.n_aut)
             }
-            pd.concat([df_hist, pd.DataFrame([new_data])], ignore_index=True).to_csv(FILE_DATA, index=False)
-            st.success("Données archivées avec succès !")
-            st.session_state.page = "MAIN_APP"
-            st.rerun()
-            
+
+            # 2. On vérifie s'il existe une ligne identique dans l'historique
+            # (On ne vérifie pas la colonne 'Mois' car elle peut s'appeler 'Janvier' ou 'JanvierMod1')
+            doublon = df_hist[
+                (df_hist['Utilisateur'] == current_vals['Utilisateur']) &
+                (df_hist['Annee'].astype(str) == current_vals['Annee']) &
+                (df_hist['Revenu'].astype(float) == current_vals['Revenu']) &
+                (df_hist['Loyer'].astype(float) == current_vals['Loyer']) &
+                (df_hist['Scolarite'].astype(float) == current_vals['Scolarite']) &
+                (df_hist['Ration'].astype(float) == current_vals['Ration']) &
+                (df_hist['Dette'].astype(float) == current_vals['Dette']) &
+                (df_hist['Poche'].astype(float) == current_vals['Poche']) &
+                (df_hist['Assistance'].astype(float) == current_vals['Assistance']) &
+                (df_hist['Autres'].astype(float) == current_vals['Autres'])
+            ]
+
+            if not doublon.empty:
+                st.warning("⚠️ Une version ayant les mêmes données existe déjà dans votre Historique de Base de données.")
+            else:
+                # 3. Si pas de doublon, on gère le nom de la version (Mod1, Mod2...)
+                exist = df_hist[
+                    (df_hist['Utilisateur'] == st.session_state.current_user) & 
+                    (df_hist['Mois'].str.startswith(st.session_state.sel_mois_base)) & 
+                    (df_hist['Annee'].astype(str) == st.session_state.sel_annee)
+                ]
+                
+                nom_version = f"{st.session_state.sel_mois_base}Mod{len(exist)}" if not exist.empty else st.session_state.sel_mois_base
+                
+                new_data = {
+                    'Utilisateur': st.session_state.current_user, 
+                    'Mois': nom_version, 
+                    'Annee': st.session_state.sel_annee, 
+                    'Revenu': st.session_state.n_rev, 
+                    'Loyer': st.session_state.n_loy, 
+                    'Scolarite': st.session_state.n_sco, 
+                    'Ration': st.session_state.n_rat, 
+                    'Dette': st.session_state.n_det, 
+                    'Poche': st.session_state.n_poc, 
+                    'Assistance': st.session_state.n_ast, 
+                    'Autres': st.session_state.n_aut, 
+                    'Total_Depenses': st.session_state.total_dep, 
+                    'Epargne': st.session_state.epargne, 
+                    'Date_Enregistrement': pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')
+                }
+                
+                pd.concat([df_hist, pd.DataFrame([new_data])], ignore_index=True).to_csv(FILE_DATA, index=False)
+                st.success(f"✅ Version '{nom_version}' archivée avec succès !")
+                st.session_state.page = "MAIN_APP"
+                st.rerun()
+                
         if st.button("⬅️ RETOUR"):
             st.session_state.page = "MAIN_APP"
             st.rerun()
-
 # --- 11. PAGE : VIEW BASE (ACCÈS COMPLET AUX DONNÉES) ---
 elif st.session_state.page == "VIEW_BASE":
     with st.container(border=True):
@@ -475,25 +552,135 @@ elif st.session_state.page == "VIEW_BASE":
             st.session_state.page = "MAIN_APP"
             st.rerun()
 
-# --- 12. PAGE : PROGRESSION (GRAPHES) ---
+# --- 12. PAGE : PROGRESSION (CODE FINAL CORRIGÉ) ---
 elif st.session_state.page == "PROGRESS":
+    FILE_DATA = 'historique_complet.csv'
+    FILE_DEP_EPARGNE = 'depenses_epargne.csv'
+    
+    # Initialisation du fichier de dépenses si absent
+    if not os.path.exists(FILE_DEP_EPARGNE):
+        pd.DataFrame(columns=['ID', 'Utilisateur', 'Raison', 'Montant', 'Date']).to_csv(FILE_DEP_EPARGNE, index=False)
+
     with st.container(border=True):
-        st.title("📈 ANALYSE DE PROGRESSION")
-        df_p = pd.read_csv(FILE_DATA)
-        data_p = df_p[df_p['Utilisateur'] == st.session_state.current_user]
+        # --- ÉTAPE 1 : ACCÈS SÉCURISÉ ---
+        if not st.session_state.get('prog_access_granted', False):
+            st.title("📈 ANALYSE DE PROGRESSION")
+            st.info("Cette section est sécurisée. Veuillez entrer votre code d'accès.")
+            pwd_input = st.text_input("PASSWORD", type="password")
+            
+            if st.button("🔓 VALIDER L'ACCÈS", use_container_width=True):
+                if pwd_input == st.session_state.get('user_pw_adm_extra'):
+                    st.session_state.prog_access_granted = True
+                    st.session_state.mode_prog2 = False
+                    st.rerun()
+                else:
+                    st.error("Code incorrect.")
+            
+            if st.button("⬅️ RETOUR"):
+                st.session_state.page = "MAIN_APP"
+                st.rerun()
         
-        if not data_p.empty:
-            st.write("Évolution de l'épargne au fil du temps")
-            st.line_chart(data_p, x='Mois', y='Epargne')
-            
-            st.write("Comparaison Revenu vs Dépenses")
-            st.bar_chart(data_p, x='Mois', y=['Revenu', 'Total_Depenses'])
+        # --- ÉTAPE 2 : LOGIQUE APRÈS VALIDATION ---
         else:
-            st.info("Aucune donnée disponible pour générer les graphiques.")
+            # Navigation dynamique
+            col_nav_titre, col_nav_btn = st.columns([2, 1])
+            with col_nav_btn:
+                label_nav = "📈 1st FONCTION" if st.session_state.get('mode_prog2') else "🔄 2nd FONCTION"
+                if st.button(label_nav, use_container_width=True):
+                    st.session_state.mode_prog2 = not st.session_state.get('mode_prog2', False)
+                    st.rerun()
+
+            with col_nav_titre:
+                titre_final = "📈 ANALYSE DE PROGRESSION 2" if st.session_state.get('mode_prog2') else "📈 ANALYSE DE PROGRESSION 1"
+                st.title(titre_final)
+
+            # Lecture des données
+            df_p = pd.read_csv(FILE_DATA)
+            data_user = df_p[df_p['Utilisateur'] == st.session_state.current_user].copy()
             
-        if st.button("⬅️ RETOUR"):
-            st.session_state.page = "MAIN_APP"
-            st.rerun()
+            if not data_user.empty:
+                # Filtrage : Dernière version par mois
+                data_user['Mois_Base'] = data_user['Mois'].apply(lambda x: x.split('Mod')[0])
+                data_user['Date_Enregistrement'] = pd.to_datetime(data_user['Date_Enregistrement'], dayfirst=True)
+                data_final = data_user.sort_values('Date_Enregistrement').drop_duplicates(subset=['Mois_Base', 'Annee'], keep='last')
+
+                if not st.session_state.get('mode_prog2'):
+                # --- INTERFACE 1 (GRAPHES VISIBLES MÊME AVEC UN SEUL MOIS) ---
+                 if not st.session_state.get('mode_prog2'):
+                    st.write("### Évolution de l'épargne")
+                    
+                    # On prépare les données indexées
+                    chart_data = data_final.set_index('Mois')['Epargne']
+                    
+                    # Astuce : Si on n'a qu'un seul mois, on utilise un Bar Chart 
+                    # pour que ce soit bien visible. Sinon, un Area Chart.
+                    if len(data_final) <= 1:
+                        st.bar_chart(chart_data, color="#2e7d32")
+                        st.info("Note : La courbe se dessinera automatiquement dès le deuxième mois.")
+                    else:
+                        st.area_chart(chart_data, color="#2e7d32")
+                    
+                    st.write("### Revenu vs Dépenses")
+                    st.bar_chart(data_final.set_index('Mois')[['Revenu', 'Total_Depenses']])
+                    
+                    if st.button("🔒 VERROUILLER ET QUITTER", use_container_width=True):
+                        st.session_state.prog_access_granted = False
+                        st.session_state.page = "MAIN_APP"
+                        st.rerun()
+                    # --- INTERFACE 2 (GESTION & SÉCURITÉ) ---
+                    # Calculs des montants
+                    total_ep_cumulee = data_final['Epargne'].astype(float).sum()
+                    df_dep_file = pd.read_csv(FILE_DEP_EPARGNE)
+                    user_deps = df_dep_file[df_dep_file['Utilisateur'] == st.session_state.current_user]
+                    total_sorties = user_deps['Montant'].sum()
+                    solde_actuel = total_ep_cumulee - total_sorties
+
+                    # Affichage réduit des totaux
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.markdown(f"""<div style="background-color:#f1f8e9; padding:10px; border-radius:5px; border-left:5px solid #4caf50;">
+                            <small>TOTAL ÉPARGNE CUMULÉE</small><br><span style="font-size:18px; font-weight:bold;">{total_ep_cumulee:,.2f} $</span></div>""", unsafe_allow_html=True)
+                    with c2:
+                        st.markdown(f"""<div style="background-color:#fff3e0; padding:10px; border-radius:5px; border-left:5px solid #ff9800;">
+                            <small>SOLDE ACTUEL</small><br><span style="font-size:18px; font-weight:bold;">{solde_actuel:,.2f} $</span></div>""", unsafe_allow_html=True)
+
+                    st.write("")
+                    if st.button("💸 DÉPENSES SUR L'ÉPARGNE", use_container_width=True):
+                        st.session_state.show_f = not st.session_state.get('show_f', False)
+                        st.rerun()
+
+                    if st.session_state.get('show_f'):
+                        with st.form("form_secu_dep"):
+                            st.subheader("ENTRÉE VOS DÉPENSES ET RAISONS")
+                            f_rai = st.text_input("Raison")
+                            f_mon = st.number_input("Montant ($)", min_value=0.0)
+                            
+                            if st.form_submit_button("✅ VALIDER"):
+                                if f_mon > solde_actuel:
+                                    st.error(f"❌ SOLDE INSUFFISANT ! (Disponible: {solde_actuel:,.2f} $)")
+                                elif f_rai and f_mon > 0:
+                                    new_d = pd.DataFrame([{'ID': len(df_dep_file)+1, 'Utilisateur': st.session_state.current_user, 
+                                                           'Raison': f_rai, 'Montant': f_mon, 
+                                                           'Date': pd.Timestamp.now().strftime('%d/%m/%Y')}])
+                                    pd.concat([df_dep_file, new_d], ignore_index=True).to_csv(FILE_DEP_EPARGNE, index=False)
+                                    st.success("Dépense enregistrée.")
+                                    st.rerun()
+
+                    # Récapitulatif avec Liste Déroulante
+                    st.write("### 📂 Récapitulatif")
+                    if not user_deps.empty:
+                        list_options = [f"ID:{r['ID']} | {r['Raison']} | {r['Montant']}$" for i, r in user_deps.iterrows()]
+                        selection = st.selectbox("Sélectionner une dépense", list_options)
+                        
+                        if st.button("🗑️ SUPPRIMER LA SÉLECTION"):
+                            sel_id = int(selection.split(" | ")[0].split(":")[1])
+                            df_dep_file = df_dep_file[~((df_dep_file['ID'] == sel_id) & (df_dep_file['Utilisateur'] == st.session_state.current_user))]
+                            df_dep_file.to_csv(FILE_DEP_EPARGNE, index=False)
+                            st.rerun()
+                    else:
+                        st.info("Aucune dépense enregistrée.")
+            else:
+                st.info("Données insuffisantes.")
 
 # --- 13. PAGE : VERIF USER ADM ---
 elif st.session_state.page == "VERIF_USER_ADM":
@@ -526,13 +713,29 @@ elif st.session_state.page == "EDIT_PROFIL":
         new_p2 = st.text_input("NOUVEAU PW (ADM/PRINT/PROG)", value=usr['pw_adm_print_prog'])
         new_p3 = st.text_input("NOUVEAU PW (USER ADM)", value=usr['pw_user_adm'])
         
-        if st.button("💾 SAUVEGARDER LES NOUVEAUX CODES"):
-            df_clients = pd.read_csv(FILE_CLIENTS, dtype=str)
-            df_clients.loc[df_clients['name'] == usr['name'], ['pw_open_modify','pw_adm_print_prog','pw_user_adm']] = [new_p1, new_p2, new_p3]
-            df_clients.to_csv(FILE_CLIENTS, index=False)
-            st.success("Mise à jour réussie !")
-            st.session_state.page = "ACCEUIL"
-            st.rerun()
-        if st.button("⬅️ ANNULER"):
+        if st.button("💾 ENREGISTRER LES MODIFICATIONS"):
+            # Vérification si des changements ont été apportés
+            if (new_p1 == usr['pw_open_modify'] and 
+                new_p2 == usr['pw_adm_print_prog'] and 
+                new_p3 == usr['pw_user_adm']):
+                
+                st.info("Aucune modification n'a été effectuée.")
+            else:
+                # Procéder à la sauvegarde
+                df_clients = pd.read_csv(FILE_CLIENTS, dtype=str)
+                df_clients.loc[df_clients['name'] == usr['name'], ['pw_open_modify','pw_adm_print_prog','pw_user_adm']] = [new_p1, new_p2, new_p3]
+                df_clients.to_csv(FILE_CLIENTS, index=False)
+                
+                # Mise à jour de l'état temporaire pour refléter les nouveaux changements
+                st.session_state.temp_user.update({
+                    'pw_open_modify': new_p1,
+                    'pw_adm_print_prog': new_p2,
+                    'pw_user_adm': new_p3
+                })
+                
+                st.success("Mise à jour réussie ! Cliquez sur RETOUR pour quitter.")
+                # Note : On ne redirige plus ici, l'utilisateur reste sur la page.
+                
+        if st.button("⬅️ RETOUR"):
             st.session_state.page = "ACCEUIL"
             st.rerun()
