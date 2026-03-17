@@ -255,11 +255,10 @@ elif st.session_state.page == "APP_ADM":
         st.markdown("<h2 style='text-align: center;'>🖥️ ADMINISTRATION GÉNÉRALE</h2>", unsafe_allow_html=True)
         st.write("Gestion des comptes utilisateurs et accès système.")
         
-        # --- LOGIQUE EXTEND ---
         if st.button("📂 EXTEND", use_container_width=True):
-            st.session_state.show_extend_table = not st.session_state.show_extend_table
+            st.session_state.show_extend_table = not st.session_state.get('show_extend_table', False)
         
-        if st.session_state.show_extend_table:
+        if st.session_state.get('show_extend_table'):
             st.write("### Base de données complète des utilisateurs")
             df_full = pd.read_csv(FILE_CLIENTS, dtype=str)
             st.dataframe(df_full, use_container_width=True)
@@ -272,8 +271,7 @@ elif st.session_state.page == "APP_ADM":
             with st.container(border=True):
                 c1, c2, c3 = st.columns([2, 1, 1])
                 c1.write(f"👤 **{row['name']}**")
-                
-                is_active = row['status'].lower() in ['true', 'active']
+                is_active = str(row['status']).lower() in ['true', 'active']
                 status_label = "ACTIVE" if is_active else "BLOCKED"
                 
                 if c2.checkbox(f"Statut: {status_label}", value=is_active, key=f"chk_{idx}") != is_active:
@@ -291,30 +289,36 @@ elif st.session_state.page == "APP_ADM":
 
 # --- 9. PAGE : MAIN APP (APPLICATION PRINCIPALE) ---
 elif st.session_state.page == "MAIN_APP":
+    # ATTENTION : Ce 'elif' doit être aligné exactement sous le 'elif' du dessus
     df_h = pd.read_csv(FILE_DATA)
     user_recs = df_h[df_h['Utilisateur'] == st.session_state.current_user]
     
-    # --- BOUTON DE CONTRÔLE (MENU / RETOUR) ---
-    if not st.session_state.show_menu:
-        if st.button("➡️ OUVRIR LE MENU"):
-            st.session_state.show_menu = True
-            st.rerun()
-    else:
-        if st.button("⬅️ RETOUR AU BULLETIN"):
-            st.session_state.show_menu = False
+    # --- BOUTONS DE NAVIGATION ET DÉCONNEXION ---
+    col_nav1, col_nav2 = st.columns(2)
+
+    with col_nav1:
+        if not st.session_state.get('show_menu', False):
+            if st.button("➡️ OUVRIR LE MENU", use_container_width=True):
+                st.session_state.show_menu = True
+                st.rerun()
+        else:
+            if st.button("⬅️ RETOUR AU BULLETIN", use_container_width=True):
+                st.session_state.show_menu = False
+                st.rerun()
+
+    with col_nav2:
+        if st.button("🟦 DÉCONNEXION", use_container_width=True):
+            st.session_state.clear()
             st.rerun()
 
     st.write("---")
 
-# --- LOGIQUE D'AFFICHAGE EXCLUSIF ---
-    if st.session_state.show_menu:
-        # --- TOUT CE BLOC EST MAINTENANT DÉCALÉ À DROITE ---
+    # --- LOGIQUE D'AFFICHAGE DU MENU ---
+    if st.session_state.get('show_menu'):
         st.markdown("<h2 style='color: #1E88E5;'>📋 MENU DE GESTION</h2>", unsafe_allow_html=True)
-        st.info(f"Utilisateur connecté : {st.session_state.current_user}")
-
+        
         col1, col2 = st.columns(2)
 
-        # --- COLONNE 1 : SÉLECTION DU MOIS ---
         with col1:
             if st.button("📅 SELECT MONTH", use_container_width=True):
                 st.session_state.show_date_picker = not st.session_state.get('show_date_picker', False)
@@ -324,26 +328,10 @@ elif st.session_state.page == "MAIN_APP":
                     m_list = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
                     m_c = st.selectbox("Mois", m_list)
                     a_c = st.selectbox("Année", [str(a) for a in range(2024, 2036)])
-                    versions = user_recs[(user_recs['Mois'].str.startswith(m_c)) & (user_recs['Annee'].astype(str) == a_c)]
-                    v_choisie = st.selectbox("Versions", versions['Mois'].tolist()) if not versions.empty and len(versions) > 1 else m_c
-                    
                     if st.button("✅ CONFIRMER"):
-                        st.session_state.update({'sel_mois_base': m_c, 'sel_annee': a_c, 'show_date_picker': False, 'show_menu': False})
-                        if not versions.empty:
-                            target = versions[versions['Mois'] == v_choisie].iloc[0]
-                            st.session_state.update({
-                                'sel_mois_affiche': target['Mois'], 'n_rev': target['Revenu'], 
-                                'n_loy': target['Loyer'], 'n_sco': target['Scolarite'], 
-                                'n_rat': target['Ration'], 'n_det': target['Dette'], 
-                                'n_poc': target['Poche'], 'n_ast': target['Assistance'], 
-                                'n_aut': target['Autres'], 'inputs_locked': True
-                            })
-                        else:
-                            st.session_state.update({'sel_mois_affiche': m_c, 'inputs_locked': False})
-                            for k in ["n_rev", "n_loy", "n_sco", "n_rat", "n_det", "n_poc", "n_ast", "n_aut"]: st.session_state[k] = 0
+                        st.session_state.show_menu = False
                         st.rerun()
 
-        # --- COLONNE 2 : PRINT PROTÉGÉ ---
         with col2:
             if st.button("🖨️ PRINT (BULLETIN)", use_container_width=True):
                 st.session_state.show_print_pwd = not st.session_state.get('show_print_pwd', False)
@@ -356,6 +344,7 @@ elif st.session_state.page == "MAIN_APP":
                         if pwd_p == st.session_state.get('user_pw_adm_extra'):
                             st.session_state.show_print_ui = True
                             st.session_state.show_print_pwd = False
+                            st.rerun()
                         else:
                             st.error("Code incorrect")
 
@@ -363,18 +352,15 @@ elif st.session_state.page == "MAIN_APP":
                 with st.container(border=True):
                     choix_pdf = st.selectbox("Version à imprimer", user_recs['Mois'].tolist()) if not user_recs.empty else None
                     if choix_pdf:
-                        pdf_bytes = create_pdf(user_recs[user_recs['Mois'] == choix_pdf].iloc[0])
-                        st.download_button("📥 Télécharger", pdf_bytes, f"Bulletin_{choix_pdf}.pdf", "application/pdf")
+                        # CORRECTION CRITIQUE LIGNE 137 : return pdf.output()
+                        pdf_output = create_pdf(user_recs[user_recs['Mois'] == choix_pdf].iloc[0])
+                        st.download_button("📥 Télécharger", pdf_output, f"Bulletin_{choix_pdf}.pdf", "application/pdf")
 
         st.write("---")
-
-        # --- BOUTONS DU BAS ---
-        c_adm, c_prog, c_deco = st.columns(3)
-
-        # Admin Data
+        c_adm, c_prog = st.columns(2)
         if c_adm.button("🛡️ ADMIN DATA", use_container_width=True):
             st.session_state.show_admin_pwd = not st.session_state.get('show_admin_pwd', False)
-
+        
         if st.session_state.get('show_admin_pwd'):
             with st.container(border=True):
                 pwd_a = st.text_input("Code Admin", type="password", key="p_admin")
@@ -384,15 +370,9 @@ elif st.session_state.page == "MAIN_APP":
                         st.rerun()
                     else:
                         st.error("Code incorrect")
-
-        # Progression
+        
         if c_prog.button("📈 PROGRESSION", use_container_width=True):
             st.session_state.page = "PROGRESS"
-            st.rerun()
-
-        # Déconnexion
-        if c_deco.button("🟦 DÉCONNEXION", use_container_width=True):
-            st.session_state.clear()
             st.rerun()
     else:
         # --- INTERFACE 2 : LE BULLETIN DE DÉPENSES ---
