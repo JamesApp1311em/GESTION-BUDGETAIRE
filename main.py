@@ -289,148 +289,100 @@ elif st.session_state.page == "APP_ADM":
 
 # --- 9. PAGE : MAIN APP (APPLICATION PRINCIPALE) ---
 elif st.session_state.page == "MAIN_APP":
-    # ATTENTION : Ce 'elif' doit être aligné exactement sous le 'elif' du dessus
     df_h = pd.read_csv(FILE_DATA)
     user_recs = df_h[df_h['Utilisateur'] == st.session_state.current_user]
     
-    # --- BOUTONS DE NAVIGATION ET DÉCONNEXION ---
-    col_nav1, col_nav2 = st.columns(2)
-
-    with col_nav1:
-        if not st.session_state.get('show_menu', False):
-            if st.button("➡️ OUVRIR LE MENU", use_container_width=True):
-                st.session_state.show_menu = True
-                st.rerun()
-        else:
+    # --- LOGIQUE D'AFFICHAGE DU MENU OU DU BULLETIN ---
+    if st.session_state.get('show_menu'):
+        # --- INTERFACE A : MENU DE GESTION (SANS DÉCONNEXION) ---
+        col_nav_menu, _ = st.columns([0.3, 0.7])
+        with col_nav_menu:
             if st.button("⬅️ RETOUR AU BULLETIN", use_container_width=True):
                 st.session_state.show_menu = False
                 st.rerun()
 
-    with col_nav2:
-        if st.button("🟦 DÉCONNEXION", use_container_width=True):
-            st.session_state.clear()
-            st.rerun()
-
-    st.write("---")
-
-    # --- LOGIQUE D'AFFICHAGE DU MENU ---
-    if st.session_state.get('show_menu'):
-        st.markdown("<h2 style='color: #1E88E5;'>📋 MENU DE GESTION</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color: #1E88E5; text-align: center;'>📋 MENU DE GESTION</h2>", unsafe_allow_html=True)
+        st.write("---")
         
         col1, col2 = st.columns(2)
-
         with col1:
             if st.button("📅 SELECT MONTH", use_container_width=True):
                 st.session_state.show_date_picker = not st.session_state.get('show_date_picker', False)
-            
             if st.session_state.get('show_date_picker'):
                 with st.container(border=True):
                     m_list = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
                     m_c = st.selectbox("Mois", m_list)
                     a_c = st.selectbox("Année", [str(a) for a in range(2024, 2036)])
+                    versions = user_recs[(user_recs['Mois'].str.startswith(m_c)) & (user_recs['Annee'].astype(str) == a_c)]
+                    v_liste = versions['Mois'].tolist()
+                    v_choisie = st.selectbox("Versions", v_liste) if len(v_liste) > 1 else m_c
                     if st.button("✅ CONFIRMER"):
-                        st.session_state.show_menu = False
+                        st.session_state.update({'sel_mois_base': m_c, 'sel_annee': a_c, 'show_date_picker': False, 'show_menu': False})
+                        if not versions.empty:
+                            target = versions[versions['Mois'] == v_choisie].iloc[0]
+                            st.session_state.update({
+                                'sel_mois_affiche': target['Mois'], 'n_rev': target['Revenu'], 
+                                'n_loy': target['Loyer'], 'n_sco': target['Scolarite'], 
+                                'n_rat': target['Ration'], 'n_det': target['Dette'], 
+                                'n_poc': target['Poche'], 'n_ast': target['Assistance'], 
+                                'n_aut': target['Autres'], 'inputs_locked': True, 
+                                'can_modify': (v_choisie == v_liste[-1])
+                            })
                         st.rerun()
 
         with col2:
             if st.button("🖨️ PRINT (BULLETIN)", use_container_width=True):
                 st.session_state.show_print_pwd = not st.session_state.get('show_print_pwd', False)
-                st.session_state.show_print_ui = False
-
             if st.session_state.get('show_print_pwd'):
                 with st.container(border=True):
-                    pwd_p = st.text_input("Code Print", type="password", key="p_print")
-                    if st.button("🔓 OK PRINT"):
-                        if pwd_p == st.session_state.get('user_pw_adm_extra'):
+                    if st.text_input("Code Print", type="password") == st.session_state.get('user_pw_adm_extra'):
+                        if st.button("🔓 OK PRINT"):
                             st.session_state.show_print_ui = True
                             st.session_state.show_print_pwd = False
                             st.rerun()
-                        else:
-                            st.error("Code incorrect")
 
             if st.session_state.get('show_print_ui'):
                 with st.container(border=True):
-                    choix_pdf = st.selectbox("Version à imprimer", user_recs['Mois'].tolist()) if not user_recs.empty else None
+                    choix_pdf = st.selectbox("Version à imprimer", user_recs['Mois'].tolist())
                     if choix_pdf:
-                        # CORRECTION CRITIQUE LIGNE 137 : return pdf.output()
-                        pdf_output = create_pdf(user_recs[user_recs['Mois'] == choix_pdf].iloc[0])
-                        st.download_button("📥 Télécharger", pdf_output, f"Bulletin_{choix_pdf}.pdf", "application/pdf")
+                        raw_data = create_pdf(user_recs[user_recs['Mois'] == choix_pdf].iloc[0])
+                        st.download_button("📥 Télécharger PDF", bytes(raw_data), f"Bulletin_{choix_pdf}.pdf", "application/pdf")
 
         st.write("---")
         c_adm, c_prog = st.columns(2)
         if c_adm.button("🛡️ ADMIN DATA", use_container_width=True):
-            st.session_state.show_admin_pwd = not st.session_state.get('show_admin_pwd', False)
-        
-        if st.session_state.get('show_admin_pwd'):
-            with st.container(border=True):
-                pwd_a = st.text_input("Code Admin", type="password", key="p_admin")
-                if st.button("🔓 OK ADMIN"):
-                    if pwd_a == st.session_state.get('user_pw_adm_extra'):
-                        st.session_state.page = "VIEW_BASE"
-                        st.rerun()
-                    else:
-                        st.error("Code incorrect")
-        
+            st.session_state.page = "VIEW_BASE"
+            st.rerun()
         if c_prog.button("📈 PROGRESSION", use_container_width=True):
             st.session_state.page = "PROGRESS"
             st.rerun()
+
     else:
-        # --- INTERFACE 2 : LE BULLETIN DE DÉPENSES ---
+        # --- INTERFACE B : BULLETIN DES DÉPENSES (AVEC DÉCONNEXION) ---
+        col_nav1, col_nav2 = st.columns([0.7, 0.3])
+        with col_nav1:
+            if st.button("➡️ OUVRIR LE MENU", use_container_width=True):
+                st.session_state.show_menu = True
+                st.rerun()
+        with col_nav2:
+            if st.button("🟦 DÉCONNEXION", use_container_width=True):
+                st.session_state.clear()
+                st.rerun()
+
+        st.write("---")
         with st.container(border=True):
             st.markdown("<h1 style='text-align: center; color: #2E7D32;'>💰 BULLETIN DES DEPENSES</h1>", unsafe_allow_html=True)
-            
-            sel_m_base = st.session_state.get('sel_mois_base')
-            L = st.session_state.inputs_locked
+            if st.session_state.get('sel_mois_base') and st.session_state.get('can_modify') and st.session_state.get('inputs_locked', True):
+                if st.button("📝 MODIFIER LA DERNIÈRE VERSION", use_container_width=True):
+                    st.session_state.inputs_locked = False
+                    st.rerun()
 
-            # --- Gestion du déverrouillage Intelligente ---
-            sel_m_base = st.session_state.get('sel_mois_base')
-            L = st.session_state.inputs_locked
-
-            if sel_m_base and L:
-                # 1. On récupère toutes les versions existantes pour ce mois/année
-                # user_recs a déjà été filtré par utilisateur au début de la page
-                versions_du_mois = user_recs[
-                    (user_recs['Mois'].str.startswith(sel_m_base)) & 
-                    (user_recs['Annee'].astype(str) == st.session_state.get('sel_annee'))
-                ]
-
-                # 2. On détermine quelle est la version la plus récente (le nombre de "Mod")
-                # Si vide, c'est une nouvelle saisie, donc on peut modifier.
-                if not versions_du_mois.empty:
-                    # On cherche le nombre maximum après "Mod"
-                    def extraire_version(nom_mois):
-                        if "Mod" in nom_mois:
-                            try:
-                                return int(nom_mois.split("Mod")[-1])
-                            except:
-                                return 0
-                        return 0
-
-                    max_version_nombre = versions_du_mois['Mois'].apply(extraire_version).max()
-                    current_version_nom = st.session_state.get('sel_mois_affiche', '')
-                    current_version_nombre = extraire_version(current_version_nom)
-
-                    # 3. Comparaison : On n'affiche le bouton que si c'est la version MAX
-                    if current_version_nombre == max_version_nombre:
-                        if st.button("📝 MODIFIER LA DERNIÈRE VERSION", use_container_width=True):
-                            st.session_state.inputs_locked = False
-                            st.rerun()
-                    else:
-                        st.warning(f"⚠️ Lecture seule : Une version plus récente existe (Mod {max_version_nombre}).")
-                else:
-                    # Si aucune donnée n'existe encore pour ce mois, on peut modifier
-                    if st.button("📝 MODIFIER LES DONNÉES", use_container_width=True):
-                        st.session_state.inputs_locked = False
-                        st.rerun()
-
+            L = st.session_state.get('inputs_locked', True)
             col_m, col_a = st.columns(2)
             col_m.text_input("MOIS EN COURS", value=st.session_state.get('sel_mois_affiche',''), disabled=True)
             col_a.text_input("ANNÉE", value=st.session_state.get('sel_annee',''), disabled=True)
-            
-            st.write("### Entrées financières")
             st.session_state.n_rev = st.number_input("REVENU GLOBAL ($)", value=int(st.session_state.get('n_rev',0)), disabled=L)
             
-            st.write("### Les dépenses")
             c1, c2 = st.columns(2)
             st.session_state.n_loy = c1.number_input("LOYER", value=int(st.session_state.get('n_loy',0)), disabled=L)
             st.session_state.n_sco = c1.number_input("SCOLARITÉ", value=int(st.session_state.get('n_sco',0)), disabled=L)
@@ -438,21 +390,14 @@ elif st.session_state.page == "MAIN_APP":
             st.session_state.n_det = c2.number_input("DETTES", value=int(st.session_state.get('n_det',0)), disabled=L)
             st.session_state.n_poc = c2.number_input("POCHE", value=int(st.session_state.get('n_poc',0)), disabled=L)
             st.session_state.n_ast = c2.number_input("ASSISTANCE", value=int(st.session_state.get('n_ast',0)), disabled=L)
-            
             st.session_state.n_aut = st.number_input("AUTRES", value=int(st.session_state.get('n_aut',0)), disabled=L)
             
             if st.button("🚀 CALCULER", use_container_width=True, type="primary"):
-                if not st.session_state.get('sel_mois_base'):
-                    st.warning("Veuillez d'abord sélectionner un mois dans le MENU.")
-                else:
-                    st.session_state.total_dep = sum([
-                        st.session_state.n_loy, st.session_state.n_sco, st.session_state.n_rat, 
-                        st.session_state.n_det, st.session_state.n_poc, st.session_state.n_ast, 
-                        st.session_state.n_aut
-                    ])
-                    st.session_state.epargne = st.session_state.n_rev - st.session_state.total_dep
-                    st.session_state.page = 'RESULTATS'
-                    st.rerun()
+                st.session_state.total_dep = sum([st.session_state.n_loy, st.session_state.n_sco, st.session_state.n_rat, st.session_state.n_det, st.session_state.n_poc, st.session_state.n_ast, st.session_state.n_aut])
+                st.session_state.epargne = st.session_state.n_rev - st.session_state.total_dep
+                st.session_state.page = 'RESULTATS'
+                st.rerun()
+
 # --- 10. PAGE : RÉSULTATS ---
 elif st.session_state.page == "RESULTATS":
     with st.container(border=True):
@@ -565,12 +510,11 @@ elif st.session_state.page == "VIEW_BASE":
             st.session_state.page = "MAIN_APP"
             st.rerun()
 
-# --- 12. PAGE : PROGRESSION (CODE FINAL CORRIGÉ) ---
+# --- 12. PAGE : PROGRESSION (INTERFACE 1 DYNAMIQUE & INTERFACE 2) ---
 elif st.session_state.page == "PROGRESS":
     FILE_DATA = 'historique_complet.csv'
     FILE_DEP_EPARGNE = 'depenses_epargne.csv'
     
-    # Initialisation du fichier de dépenses si absent
     if not os.path.exists(FILE_DEP_EPARGNE):
         pd.DataFrame(columns=['ID', 'Utilisateur', 'Raison', 'Montant', 'Date']).to_csv(FILE_DEP_EPARGNE, index=False)
 
@@ -595,105 +539,108 @@ elif st.session_state.page == "PROGRESS":
         
         # --- ÉTAPE 2 : LOGIQUE APRÈS VALIDATION ---
         else:
-            # Navigation dynamique
-            col_nav_titre, col_nav_btn = st.columns([2, 1])
-            with col_nav_btn:
-                label_nav = "📈 1st FONCTION" if st.session_state.get('mode_prog2') else "🔄 2nd FONCTION"
-                if st.button(label_nav, use_container_width=True):
+            col_titre, col_nav = st.columns([2, 1])
+            
+            with col_nav:
+                btn_lbl = "📈 1st FONCTION" if st.session_state.get('mode_prog2') else "🔄 2nd FONCTION"
+                if st.button(btn_lbl, use_container_width=True):
                     st.session_state.mode_prog2 = not st.session_state.get('mode_prog2', False)
                     st.rerun()
+                
+                if not st.session_state.get('mode_prog2'):
+                    st.markdown("---")
+                    type_graph = st.selectbox("Type de graphique", ["Courbe (Area)", "Barres", "Lignes simples"])
+                    vue_temp = st.radio("Grouper par :", ["Mois", "Année"], horizontal=True)
 
-            with col_nav_titre:
+            with col_titre:
                 titre_final = "📈 ANALYSE DE PROGRESSION 2" if st.session_state.get('mode_prog2') else "📈 ANALYSE DE PROGRESSION 1"
                 st.title(titre_final)
 
-            # Lecture des données
             df_p = pd.read_csv(FILE_DATA)
             data_user = df_p[df_p['Utilisateur'] == st.session_state.current_user].copy()
             
             if not data_user.empty:
-                # Filtrage : Dernière version par mois
-                data_user['Mois_Base'] = data_user['Mois'].apply(lambda x: x.split('Mod')[0])
+                data_user['Mois_Base'] = data_user['Mois'].apply(lambda x: str(x).split('Mod')[0])
                 data_user['Date_Enregistrement'] = pd.to_datetime(data_user['Date_Enregistrement'], dayfirst=True)
                 data_final = data_user.sort_values('Date_Enregistrement').drop_duplicates(subset=['Mois_Base', 'Annee'], keep='last')
 
+                # --- INTERFACE 1 : GRAPHES DYNAMIQUES ---
                 if not st.session_state.get('mode_prog2'):
-                # --- INTERFACE 1 (GRAPHES VISIBLES MÊME AVEC UN SEUL MOIS) ---
-                 if not st.session_state.get('mode_prog2'):
-                    st.write("### Évolution de l'épargne")
-                    
-                    # On prépare les données indexées
-                    chart_data = data_final.set_index('Mois')['Epargne']
-                    
-                    # Astuce : Si on n'a qu'un seul mois, on utilise un Bar Chart 
-                    # pour que ce soit bien visible. Sinon, un Area Chart.
-                    if len(data_final) <= 1:
-                        st.bar_chart(chart_data, color="#2e7d32")
-                        st.info("Note : La courbe se dessinera automatiquement dès le deuxième mois.")
+                    if vue_temp == "Année":
+                        df_plot = data_final.groupby('Annee')[['Epargne', 'Revenu', 'Total_Depenses']].sum()
                     else:
-                        st.area_chart(chart_data, color="#2e7d32")
+                        df_plot = data_final.set_index('Mois')[['Epargne', 'Revenu', 'Total_Depenses']]
+
+                    st.write(f"### Évolution de l'épargne (par {vue_temp})")
                     
-                    st.write("### Revenu vs Dépenses")
-                    st.bar_chart(data_final.set_index('Mois')[['Revenu', 'Total_Depenses']])
+                    if type_graph == "Barres":
+                        st.bar_chart(df_plot['Epargne'], color="#2e7d32")
+                    elif type_graph == "Lignes simples":
+                        st.line_chart(df_plot['Epargne'], color="#2e7d32")
+                    else:
+                        st.area_chart(df_plot['Epargne'], color="#2e7d32")
+                    
+                    # --- MODIFICATION ICI : ÉPARGNE VS DÉPENSES ---
+                    st.write("### Comparaison Épargne vs Dépenses")
+                    st.bar_chart(df_plot[['Epargne', 'Total_Depenses']])
                     
                     if st.button("🔒 VERROUILLER ET QUITTER", use_container_width=True):
                         st.session_state.prog_access_granted = False
                         st.session_state.page = "MAIN_APP"
                         st.rerun()
-                    # --- INTERFACE 2 (GESTION & SÉCURITÉ) ---
-                    # Calculs des montants
+
+                # --- INTERFACE 2 : GESTION DES DÉPENSES ---
+                else:
                     total_ep_cumulee = data_final['Epargne'].astype(float).sum()
-                    df_dep_file = pd.read_csv(FILE_DEP_EPARGNE)
-                    user_deps = df_dep_file[df_dep_file['Utilisateur'] == st.session_state.current_user]
+                    df_deps_file = pd.read_csv(FILE_DEP_EPARGNE)
+                    user_deps = df_deps_file[df_deps_file['Utilisateur'] == st.session_state.current_user]
                     total_sorties = user_deps['Montant'].sum()
                     solde_actuel = total_ep_cumulee - total_sorties
 
-                    # Affichage réduit des totaux
                     c1, c2 = st.columns(2)
                     with c1:
-                        st.markdown(f"""<div style="background-color:#f1f8e9; padding:10px; border-radius:5px; border-left:5px solid #4caf50;">
-                            <small>TOTAL ÉPARGNE CUMULÉE</small><br><span style="font-size:18px; font-weight:bold;">{total_ep_cumulee:,.2f} $</span></div>""", unsafe_allow_html=True)
+                        st.markdown(f"""<div style="background-color:#e8f5e9; padding:10px; border-radius:5px; border-left:5px solid #2e7d32;">
+                            <small>TOTAL ÉPARGNE CUMULÉE</small><br><b>{total_ep_cumulee:,.2f} $</b></div>""", unsafe_allow_html=True)
                     with c2:
                         st.markdown(f"""<div style="background-color:#fff3e0; padding:10px; border-radius:5px; border-left:5px solid #ff9800;">
-                            <small>SOLDE ACTUEL</small><br><span style="font-size:18px; font-weight:bold;">{solde_actuel:,.2f} $</span></div>""", unsafe_allow_html=True)
+                            <small>SOLDE ACTUEL</small><br><b>{solde_actuel:,.2f} $</b></div>""", unsafe_allow_html=True)
 
                     st.write("")
                     if st.button("💸 DÉPENSES SUR L'ÉPARGNE", use_container_width=True):
-                        st.session_state.show_f = not st.session_state.get('show_f', False)
+                        st.session_state.show_f_dep = not st.session_state.get('show_f_dep', False)
                         st.rerun()
 
-                    if st.session_state.get('show_f'):
-                        with st.form("form_secu_dep"):
+                    if st.session_state.get('show_f_dep'):
+                        # Utilisation de clear_on_submit=True pour vider les champs
+                        with st.form("form_v4_secure", clear_on_submit=True):
                             st.subheader("ENTRÉE VOS DÉPENSES ET RAISONS")
-                            f_rai = st.text_input("Raison")
-                            f_mon = st.number_input("Montant ($)", min_value=0.0)
-                            
+                            f_raison = st.text_input("Raison")
+                            f_montant = st.number_input("Montant ($)", min_value=0.0)
                             if st.form_submit_button("✅ VALIDER"):
-                                if f_mon > solde_actuel:
-                                    st.error(f"❌ SOLDE INSUFFISANT ! (Disponible: {solde_actuel:,.2f} $)")
-                                elif f_rai and f_mon > 0:
-                                    new_d = pd.DataFrame([{'ID': len(df_dep_file)+1, 'Utilisateur': st.session_state.current_user, 
-                                                           'Raison': f_rai, 'Montant': f_mon, 
+                                if f_montant > solde_actuel:
+                                    st.error(f"❌ SOLDE INSUFFISANT ! Dispo: {solde_actuel:,.2f} $")
+                                elif f_raison and f_montant > 0:
+                                    new_row = pd.DataFrame([{'ID': len(df_deps_file)+1, 'Utilisateur': st.session_state.current_user, 
+                                                           'Raison': f_raison, 'Montant': f_montant, 
                                                            'Date': pd.Timestamp.now().strftime('%d/%m/%Y')}])
-                                    pd.concat([df_dep_file, new_d], ignore_index=True).to_csv(FILE_DEP_EPARGNE, index=False)
+                                    pd.concat([df_deps_file, new_row], ignore_index=True).to_csv(FILE_DEP_EPARGNE, index=False)
                                     st.success("Dépense enregistrée.")
                                     st.rerun()
 
-                    # Récapitulatif avec Liste Déroulante
                     st.write("### 📂 Récapitulatif")
                     if not user_deps.empty:
-                        list_options = [f"ID:{r['ID']} | {r['Raison']} | {r['Montant']}$" for i, r in user_deps.iterrows()]
-                        selection = st.selectbox("Sélectionner une dépense", list_options)
-                        
-                        if st.button("🗑️ SUPPRIMER LA SÉLECTION"):
-                            sel_id = int(selection.split(" | ")[0].split(":")[1])
-                            df_dep_file = df_dep_file[~((df_dep_file['ID'] == sel_id) & (df_dep_file['Utilisateur'] == st.session_state.current_user))]
-                            df_dep_file.to_csv(FILE_DEP_EPARGNE, index=False)
+                        options_liste = [f"ID:{r['ID']} - {r['Raison']} ({r['Montant']}$)" for i, r in user_deps.iterrows()]
+                        selection_dep = st.selectbox("Sélectionner une dépense", options_liste)
+                        if st.button("🗑️ SUPPRIMER CETTE DÉPENSE", use_container_width=True):
+                            id_del = int(selection_dep.split(" - ")[0].split(":")[1])
+                            df_deps_file = pd.read_csv(FILE_DEP_EPARGNE)
+                            df_deps_file = df_deps_file[~((df_deps_file['ID'] == id_del) & (df_deps_file['Utilisateur'] == st.session_state.current_user))]
+                            df_deps_file.to_csv(FILE_DEP_EPARGNE, index=False)
                             st.rerun()
                     else:
                         st.info("Aucune dépense enregistrée.")
             else:
-                st.info("Données insuffisantes.")
+                st.warning("Aucune donnée enregistrée.")
 
 # --- 13. PAGE : VERIF USER ADM ---
 elif st.session_state.page == "VERIF_USER_ADM":
