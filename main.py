@@ -552,12 +552,11 @@ elif st.session_state.page == "VIEW_BASE":
             st.session_state.page = "MAIN_APP"
             st.rerun()
 
-# --- 12. PAGE : PROGRESSION (CODE FINAL CORRIGÉ) ---
+# --- 12. PAGE : PROGRESSION (INTERFACE 1 DYNAMIQUE & INTERFACE 2) ---
 elif st.session_state.page == "PROGRESS":
     FILE_DATA = 'historique_complet.csv'
     FILE_DEP_EPARGNE = 'depenses_epargne.csv'
     
-    # Initialisation du fichier de dépenses si absent
     if not os.path.exists(FILE_DEP_EPARGNE):
         pd.DataFrame(columns=['ID', 'Utilisateur', 'Raison', 'Montant', 'Date']).to_csv(FILE_DEP_EPARGNE, index=False)
 
@@ -582,106 +581,108 @@ elif st.session_state.page == "PROGRESS":
         
         # --- ÉTAPE 2 : LOGIQUE APRÈS VALIDATION ---
         else:
-            # Navigation dynamique
-            col_nav_titre, col_nav_btn = st.columns([2, 1])
-            with col_nav_btn:
-                label_nav = "📈 1st FONCTION" if st.session_state.get('mode_prog2') else "🔄 2nd FONCTION"
-                if st.button(label_nav, use_container_width=True):
+            col_titre, col_nav = st.columns([2, 1])
+            
+            with col_nav:
+                btn_lbl = "📈 1st FONCTION" if st.session_state.get('mode_prog2') else "🔄 2nd FONCTION"
+                if st.button(btn_lbl, use_container_width=True):
                     st.session_state.mode_prog2 = not st.session_state.get('mode_prog2', False)
                     st.rerun()
+                
+                if not st.session_state.get('mode_prog2'):
+                    st.markdown("---")
+                    type_graph = st.selectbox("Type de graphique", ["Courbe (Area)", "Barres", "Lignes simples"])
+                    vue_temp = st.radio("Grouper par :", ["Mois", "Année"], horizontal=True)
 
-            with col_nav_titre:
+            with col_titre:
                 titre_final = "📈 ANALYSE DE PROGRESSION 2" if st.session_state.get('mode_prog2') else "📈 ANALYSE DE PROGRESSION 1"
                 st.title(titre_final)
 
-            # Lecture des données
             df_p = pd.read_csv(FILE_DATA)
             data_user = df_p[df_p['Utilisateur'] == st.session_state.current_user].copy()
             
             if not data_user.empty:
-                # Filtrage : Dernière version par mois
-                data_user['Mois_Base'] = data_user['Mois'].apply(lambda x: x.split('Mod')[0])
+                data_user['Mois_Base'] = data_user['Mois'].apply(lambda x: str(x).split('Mod')[0])
                 data_user['Date_Enregistrement'] = pd.to_datetime(data_user['Date_Enregistrement'], dayfirst=True)
                 data_final = data_user.sort_values('Date_Enregistrement').drop_duplicates(subset=['Mois_Base', 'Annee'], keep='last')
 
+                # --- INTERFACE 1 : GRAPHES DYNAMIQUES ---
                 if not st.session_state.get('mode_prog2'):
-                # --- INTERFACE 1 (GRAPHES VISIBLES MÊME AVEC UN SEUL MOIS) ---
-                 if not st.session_state.get('mode_prog2'):
-                    st.write("### Évolution de l'épargne")
-                    
-                    # On prépare les données indexées
-                    chart_data = data_final.set_index('Mois')['Epargne']
-                    
-                    # Astuce : Si on n'a qu'un seul mois, on utilise un Bar Chart 
-                    # pour que ce soit bien visible. Sinon, un Area Chart.
-                    if len(data_final) <= 1:
-                        st.bar_chart(chart_data, color="#2e7d32")
-                        st.info("Note : La courbe se dessinera automatiquement dès le deuxième mois.")
+                    if vue_temp == "Année":
+                        df_plot = data_final.groupby('Annee')[['Epargne', 'Revenu', 'Total_Depenses']].sum()
                     else:
-                        st.area_chart(chart_data, color="#2e7d32")
+                        df_plot = data_final.set_index('Mois')[['Epargne', 'Revenu', 'Total_Depenses']]
+
+                    st.write(f"### Évolution de l'épargne (par {vue_temp})")
                     
-                    st.write("### Revenu vs Dépenses")
-                    st.bar_chart(data_final.set_index('Mois')[['Revenu', 'Total_Depenses']])
+                    if type_graph == "Barres":
+                        st.bar_chart(df_plot['Epargne'], color="#2e7d32")
+                    elif type_graph == "Lignes simples":
+                        st.line_chart(df_plot['Epargne'], color="#2e7d32")
+                    else:
+                        st.area_chart(df_plot['Epargne'], color="#2e7d32")
+                    
+                    # --- MODIFICATION ICI : ÉPARGNE VS DÉPENSES ---
+                    st.write("### Comparaison Épargne vs Dépenses")
+                    st.bar_chart(df_plot[['Epargne', 'Total_Depenses']])
                     
                     if st.button("🔒 VERROUILLER ET QUITTER", use_container_width=True):
                         st.session_state.prog_access_granted = False
                         st.session_state.page = "MAIN_APP"
                         st.rerun()
-                    # --- INTERFACE 2 (GESTION & SÉCURITÉ) ---
-                    # Calculs des montants
+
+                # --- INTERFACE 2 : GESTION DES DÉPENSES ---
+                else:
                     total_ep_cumulee = data_final['Epargne'].astype(float).sum()
-                    df_dep_file = pd.read_csv(FILE_DEP_EPARGNE)
-                    user_deps = df_dep_file[df_dep_file['Utilisateur'] == st.session_state.current_user]
+                    df_deps_file = pd.read_csv(FILE_DEP_EPARGNE)
+                    user_deps = df_deps_file[df_deps_file['Utilisateur'] == st.session_state.current_user]
                     total_sorties = user_deps['Montant'].sum()
                     solde_actuel = total_ep_cumulee - total_sorties
 
-                    # Affichage réduit des totaux
                     c1, c2 = st.columns(2)
                     with c1:
-                        st.markdown(f"""<div style="background-color:#f1f8e9; padding:10px; border-radius:5px; border-left:5px solid #4caf50;">
-                            <small>TOTAL ÉPARGNE CUMULÉE</small><br><span style="font-size:18px; font-weight:bold;">{total_ep_cumulee:,.2f} $</span></div>""", unsafe_allow_html=True)
+                        st.markdown(f"""<div style="background-color:#e8f5e9; padding:10px; border-radius:5px; border-left:5px solid #2e7d32;">
+                            <small>TOTAL ÉPARGNE CUMULÉE</small><br><b>{total_ep_cumulee:,.2f} $</b></div>""", unsafe_allow_html=True)
                     with c2:
                         st.markdown(f"""<div style="background-color:#fff3e0; padding:10px; border-radius:5px; border-left:5px solid #ff9800;">
-                            <small>SOLDE ACTUEL</small><br><span style="font-size:18px; font-weight:bold;">{solde_actuel:,.2f} $</span></div>""", unsafe_allow_html=True)
+                            <small>SOLDE ACTUEL</small><br><b>{solde_actuel:,.2f} $</b></div>""", unsafe_allow_html=True)
 
                     st.write("")
                     if st.button("💸 DÉPENSES SUR L'ÉPARGNE", use_container_width=True):
-                        st.session_state.show_f = not st.session_state.get('show_f', False)
+                        st.session_state.show_f_dep = not st.session_state.get('show_f_dep', False)
                         st.rerun()
 
-                    if st.session_state.get('show_f'):
-                        with st.form("form_secu_dep"):
+                    if st.session_state.get('show_f_dep'):
+                        # Utilisation de clear_on_submit=True pour vider les champs
+                        with st.form("form_v4_secure", clear_on_submit=True):
                             st.subheader("ENTRÉE VOS DÉPENSES ET RAISONS")
-                            f_rai = st.text_input("Raison")
-                            f_mon = st.number_input("Montant ($)", min_value=0.0)
-                            
+                            f_raison = st.text_input("Raison")
+                            f_montant = st.number_input("Montant ($)", min_value=0.0)
                             if st.form_submit_button("✅ VALIDER"):
-                                if f_mon > solde_actuel:
-                                    st.error(f"❌ SOLDE INSUFFISANT ! (Disponible: {solde_actuel:,.2f} $)")
-                                elif f_rai and f_mon > 0:
-                                    new_d = pd.DataFrame([{'ID': len(df_dep_file)+1, 'Utilisateur': st.session_state.current_user, 
-                                                           'Raison': f_rai, 'Montant': f_mon, 
+                                if f_montant > solde_actuel:
+                                    st.error(f"❌ SOLDE INSUFFISANT ! Dispo: {solde_actuel:,.2f} $")
+                                elif f_raison and f_montant > 0:
+                                    new_row = pd.DataFrame([{'ID': len(df_deps_file)+1, 'Utilisateur': st.session_state.current_user, 
+                                                           'Raison': f_raison, 'Montant': f_montant, 
                                                            'Date': pd.Timestamp.now().strftime('%d/%m/%Y')}])
-                                    pd.concat([df_dep_file, new_d], ignore_index=True).to_csv(FILE_DEP_EPARGNE, index=False)
+                                    pd.concat([df_deps_file, new_row], ignore_index=True).to_csv(FILE_DEP_EPARGNE, index=False)
                                     st.success("Dépense enregistrée.")
                                     st.rerun()
 
-                    # Récapitulatif avec Liste Déroulante
                     st.write("### 📂 Récapitulatif")
                     if not user_deps.empty:
-                        list_options = [f"ID:{r['ID']} | {r['Raison']} | {r['Montant']}$" for i, r in user_deps.iterrows()]
-                        selection = st.selectbox("Sélectionner une dépense", list_options)
-                        
-                        if st.button("🗑️ SUPPRIMER LA SÉLECTION"):
-                            sel_id = int(selection.split(" | ")[0].split(":")[1])
-                            df_dep_file = df_dep_file[~((df_dep_file['ID'] == sel_id) & (df_dep_file['Utilisateur'] == st.session_state.current_user))]
-                            df_dep_file.to_csv(FILE_DEP_EPARGNE, index=False)
+                        options_liste = [f"ID:{r['ID']} - {r['Raison']} ({r['Montant']}$)" for i, r in user_deps.iterrows()]
+                        selection_dep = st.selectbox("Sélectionner une dépense", options_liste)
+                        if st.button("🗑️ SUPPRIMER CETTE DÉPENSE", use_container_width=True):
+                            id_del = int(selection_dep.split(" - ")[0].split(":")[1])
+                            df_deps_file = pd.read_csv(FILE_DEP_EPARGNE)
+                            df_deps_file = df_deps_file[~((df_deps_file['ID'] == id_del) & (df_deps_file['Utilisateur'] == st.session_state.current_user))]
+                            df_deps_file.to_csv(FILE_DEP_EPARGNE, index=False)
                             st.rerun()
                     else:
                         st.info("Aucune dépense enregistrée.")
             else:
-                st.info("Données insuffisantes.")
-
+                st.warning("Aucune donnée enregistrée.")
 # --- 13. PAGE : VERIF USER ADM ---
 elif st.session_state.page == "VERIF_USER_ADM":
     with st.container(border=True):
