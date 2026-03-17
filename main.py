@@ -143,7 +143,10 @@ if 'confirm_exit' not in st.session_state: st.session_state.confirm_exit = False
 if 'show_extend_table' not in st.session_state: st.session_state.show_extend_table = False
 if 'current_user' not in st.session_state: st.session_state.current_user = None
 if 'show_menu' not in st.session_state: st.session_state.show_menu = False
-
+if 'access_admin_granted' not in st.session_state:
+    st.session_state.access_admin_granted = False
+if 'access_print_granted' not in st.session_state:
+    st.session_state.access_print_granted = False
 # --- 4. LOGIQUE DE FERMETURE (QUITTER L'APP) ---
 if st.session_state.confirm_exit:
     with st.container(border=True):
@@ -303,14 +306,15 @@ elif st.session_state.page == "MAIN_APP":
 
     st.write("---")
 
-    # --- LOGIQUE D'AFFICHAGE EXCLUSIF ---
+# --- LOGIQUE D'AFFICHAGE EXCLUSIF ---
     if st.session_state.show_menu:
-        # --- INTERFACE 1 : LE MENU ---
+        # --- TOUT CE BLOC EST MAINTENANT DÉCALÉ À DROITE ---
         st.markdown("<h2 style='color: #1E88E5;'>📋 MENU DE GESTION</h2>", unsafe_allow_html=True)
         st.info(f"Utilisateur connecté : {st.session_state.current_user}")
-        
+
         col1, col2 = st.columns(2)
-        
+
+        # --- COLONNE 1 : SÉLECTION DU MOIS ---
         with col1:
             if st.button("📅 SELECT MONTH", use_container_width=True):
                 st.session_state.show_date_picker = not st.session_state.get('show_date_picker', False)
@@ -339,28 +343,57 @@ elif st.session_state.page == "MAIN_APP":
                             for k in ["n_rev", "n_loy", "n_sco", "n_rat", "n_det", "n_poc", "n_ast", "n_aut"]: st.session_state[k] = 0
                         st.rerun()
 
+        # --- COLONNE 2 : PRINT PROTÉGÉ ---
         with col2:
             if st.button("🖨️ PRINT (BULLETIN)", use_container_width=True):
-                st.session_state.show_print_ui = not st.session_state.get('show_print_ui', False)
-            
+                st.session_state.show_print_pwd = not st.session_state.get('show_print_pwd', False)
+                st.session_state.show_print_ui = False
+
+            if st.session_state.get('show_print_pwd'):
+                with st.container(border=True):
+                    pwd_p = st.text_input("Code Print", type="password", key="p_print")
+                    if st.button("🔓 OK PRINT"):
+                        if pwd_p == st.session_state.get('user_pw_adm_extra'):
+                            st.session_state.show_print_ui = True
+                            st.session_state.show_print_pwd = False
+                        else:
+                            st.error("Code incorrect")
+
             if st.session_state.get('show_print_ui'):
-                choix_pdf = st.selectbox("Version à imprimer", user_recs['Mois'].tolist()) if not user_recs.empty else None
-                if choix_pdf:
-                    pdf_bytes = create_pdf(user_recs[user_recs['Mois'] == choix_pdf].iloc[0])
-                    st.download_button("📥 Télécharger", pdf_bytes, f"Bulletin_{choix_pdf}.pdf", "application/pdf")
+                with st.container(border=True):
+                    choix_pdf = st.selectbox("Version à imprimer", user_recs['Mois'].tolist()) if not user_recs.empty else None
+                    if choix_pdf:
+                        pdf_bytes = create_pdf(user_recs[user_recs['Mois'] == choix_pdf].iloc[0])
+                        st.download_button("📥 Télécharger", pdf_bytes, f"Bulletin_{choix_pdf}.pdf", "application/pdf")
 
         st.write("---")
+
+        # --- BOUTONS DU BAS ---
         c_adm, c_prog, c_deco = st.columns(3)
-        if c_adm.button("🛡️ ADMIN DATA"):
-            st.session_state.page = "VIEW_BASE"
-            st.rerun()
-        if c_prog.button("📈 PROGRESSION"):
+
+        # Admin Data
+        if c_adm.button("🛡️ ADMIN DATA", use_container_width=True):
+            st.session_state.show_admin_pwd = not st.session_state.get('show_admin_pwd', False)
+
+        if st.session_state.get('show_admin_pwd'):
+            with st.container(border=True):
+                pwd_a = st.text_input("Code Admin", type="password", key="p_admin")
+                if st.button("🔓 OK ADMIN"):
+                    if pwd_a == st.session_state.get('user_pw_adm_extra'):
+                        st.session_state.page = "VIEW_BASE"
+                        st.rerun()
+                    else:
+                        st.error("Code incorrect")
+
+        # Progression
+        if c_prog.button("📈 PROGRESSION", use_container_width=True):
             st.session_state.page = "PROGRESS"
             st.rerun()
-        if c_deco.button("🟦 DÉCONNEXION"):
+
+        # Déconnexion
+        if c_deco.button("🟦 DÉCONNEXION", use_container_width=True):
             st.session_state.clear()
             st.rerun()
-
     else:
         # --- INTERFACE 2 : LE BULLETIN DE DÉPENSES ---
         with st.container(border=True):
