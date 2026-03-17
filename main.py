@@ -134,7 +134,7 @@ def create_pdf(row):
     pdf.set_font("Arial", "I", 8)
     pdf.cell(190, 5, f"Document généré le {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}", 0, 1, 'R')
     
-    return bytes(pdf.output(dest='S'))
+    return pdf.output()
 
 # --- 3. GESTION DU SESSION STATE (MÉMOIRE DE L'APP) ---
 if 'page' not in st.session_state: st.session_state.page = "ACCEUIL"
