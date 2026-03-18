@@ -283,7 +283,7 @@ elif st.session_state.page == "APP_ADM":
             st.rerun()
 # --- 9. PAGE : MAIN APP (APPLICATION PRINCIPALE) ---
 elif st.session_state.page == "MAIN_APP":
-    # 1. Chargement des données AU DÉBUT du bloc (Bien indenté)
+    # 1. Chargement des données AU DÉBUT du bloc
     df_h = pd.read_csv(FILE_DATA)
     user_recs = df_h[df_h['Utilisateur'] == st.session_state.current_user].copy()
     
@@ -371,13 +371,27 @@ elif st.session_state.page == "MAIN_APP":
                     else:
                         st.warning("Aucune donnée.")
 
-        # --- ADMIN & PROGRESSION (Toujours dans le menu) ---
+        # --- ADMIN & PROGRESSION (Logique de mot de passe réintégrée) ---
         c_adm, c_prog = st.columns(2)
-        if c_adm.button("🛡️ ADMIN DATA", use_container_width=True):
-            st.session_state.show_admin_pwd = not st.session_state.get('show_admin_pwd', False)
-        if c_prog.button("📈 PROGRESSION", use_container_width=True):
-            st.session_state.page = "PROGRESS"
-            st.rerun()
+        
+        with c_adm:
+            if st.button("🛡️ ADMIN DATA", use_container_width=True):
+                st.session_state.show_admin_pwd = not st.session_state.get('show_admin_pwd', False)
+            
+            if st.session_state.get('show_admin_pwd'):
+                with st.container(border=True):
+                    p_admin = st.text_input("Code Admin requis", type="password", key="p_admin")
+                    if st.button("🔓 ACCÉDER À LA BASE"):
+                        if p_admin == st.session_state.get('user_pw_adm_extra'):
+                            st.session_state.page = "VIEW_BASE"
+                            st.rerun()
+                        else:
+                            st.error("Code incorrect")
+
+        with c_prog:
+            if st.button("📈 PROGRESSION", use_container_width=True):
+                st.session_state.page = "PROGRESS"
+                st.rerun()
 
     else:
         # --- INTERFACE 2 : LE BULLETIN DE DÉPENSES ---
