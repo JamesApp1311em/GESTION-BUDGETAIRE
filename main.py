@@ -130,7 +130,7 @@ def create_pdf(row):
     pdf.cell(190, 5, f"Document généré le {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}", 0, 1, 'R')
 
     # RETOUR BINAIRE CORRECT
-    return bytes(pdf.output())
+    return pdf.output(dest='S')
 
 # --- 3. GESTION DU SESSION STATE (MÉMOIRE DE L'APP) ---
 if 'page' not in st.session_state: st.session_state.page = "ACCEUIL"
@@ -347,7 +347,7 @@ elif st.session_state.page == "MAIN_APP":
                                 st.session_state[k] = 0
                         st.rerun()
 
-        # --- COLONNE 2 : PRINT SÉCURISÉ ---
+# --- COLONNE 2 : PRINT SÉCURISÉ ---
         with col2:
             if st.button("🖨️ PRINT (BULLETIN)", use_container_width=True):
                 st.session_state.show_print_pwd = not st.session_state.get('show_print_pwd', False)
@@ -369,13 +369,27 @@ elif st.session_state.page == "MAIN_APP":
                     if not user_recs.empty:
                         list_mois = user_recs.sort_values('Date_Enregistrement', ascending=False)['Mois'].tolist()
                         choix_pdf = st.selectbox("Choisir la version à imprimer", list_mois)
+                        
                         if choix_pdf:
                             row_selected = user_recs[user_recs['Mois'] == choix_pdf].iloc[0]
-                            pdf_bytes = create_pdf(row_selected)
-                            st.download_button(label="📥 Télécharger PDF", data=pdf_bytes, file_name=f"Bulletin_{choix_pdf}.pdf", mime="application/pdf", use_container_width=True)
+                            
+                            # 1. On génère le PDF (via ta fonction avec dest='S')
+                            pdf_raw = create_pdf(row_selected)
+                            
+                            # 2. LOGIQUE INTÉGRÉE : Conversion explicite pour Streamlit/Replit
+                            # Cela transforme le 'bytearray' en 'bytes' pur et évite l'erreur de format
+                            pdf_final = bytes(pdf_raw)
+                            
+                            # 3. Le bouton de téléchargement utilise les données nettoyées
+                            st.download_button(
+                                label="📥 Télécharger PDF", 
+                                data=pdf_final, 
+                                file_name=f"Bulletin_{choix_pdf}.pdf", 
+                                mime="application/pdf", 
+                                use_container_width=True
+                            )
                     else:
                         st.warning("Aucune donnée.")
-
         # --- ADMIN & PROGRESSION ---
         c_adm, c_prog = st.columns(2)
         with c_adm:
