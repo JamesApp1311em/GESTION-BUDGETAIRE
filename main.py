@@ -313,7 +313,7 @@ elif st.session_state.page == "MAIN_APP":
         
         col1, col2 = st.columns(2)
         
-        # --- COLONNE 1 : SÉLECTION DU MOIS ---
+# --- COLONNE 1 : SÉLECTION DU MOIS ---
         with col1:
             if st.button("📅 SELECT MONTH", use_container_width=True):
                 st.session_state.show_date_picker = not st.session_state.get('show_date_picker', False)
@@ -323,25 +323,47 @@ elif st.session_state.page == "MAIN_APP":
                     m_list = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
                     m_c = st.selectbox("Mois", m_list)
                     a_c = st.selectbox("Année", [str(a) for a in range(2024, 2100)])
-                    versions = user_recs[(user_recs['Mois'].str.startswith(m_c)) & (user_recs['Annee'].astype(str) == a_c)]
-                    v_choisie = st.selectbox("Versions", versions['Mois'].tolist()) if not versions.empty and len(versions) > 1 else m_c
+                    
+                    # LOGIQUE DE FILTRE AMÉLIORÉE : 
+                    # On cherche si le nom contient le mois ET l'année (ex: "Mars2024")
+                    versions = user_recs[
+                        (user_recs['Mois'].str.contains(m_c, case=False)) & 
+                        (user_recs['Mois'].str.contains(a_c))
+                    ]
+                    
+                    # On définit la version choisie par défaut ou via la liste
+                    if not versions.empty:
+                        v_choisie = st.selectbox("Versions trouvées", versions['Mois'].tolist())
+                    else:
+                        v_choisie = m_c # Repli sur le mois simple si rien n'est trouvé
                     
                     if st.button("✅ CONFIRMER"):
                         st.session_state.update({'sel_mois_base': m_c, 'sel_annee': a_c, 'show_date_picker': False, 'show_menu': False})
-                        if not versions.empty:
-                            target = versions[versions['Mois'] == v_choisie].iloc[0]
+                        
+                        # On vérifie si v_choisie existe réellement dans nos données
+                        target_rows = versions[versions['Mois'] == v_choisie]
+                        
+                        if not target_rows.empty:
+                            target = target_rows.iloc[0]
                             st.session_state.update({
-                                'sel_mois_affiche': target['Mois'], 'n_rev': target['Revenu'], 
-                                'n_loy': target['Loyer'], 'n_sco': target['Scolarite'], 
-                                'n_rat': target['Ration'], 'n_det': target['Dette'], 
-                                'n_poc': target['Poche'], 'n_ast': target['Assistance'], 
-                                'n_aut': target['Autres'], 'inputs_locked': True
+                                'sel_mois_affiche': target['Mois'], 
+                                'n_rev': target['Revenu'], 
+                                'n_loy': target['Loyer'], 
+                                'n_sco': target['Scolarite'], 
+                                'n_rat': target['Ration'], 
+                                'n_det': target['Dette'], 
+                                'n_poc': target['Poche'], 
+                                'n_ast': target['Assistance'], 
+                                'n_aut': target['Autres'], 
+                                'inputs_locked': True
                             })
                         else:
+                            # Cas d'un nouveau mois qui n'existe pas encore dans la base
                             st.session_state.update({'sel_mois_affiche': m_c, 'inputs_locked': False})
-                            for k in ["n_rev", "n_loy", "n_sco", "n_rat", "n_det", "n_poc", "n_ast", "n_aut"]: st.session_state[k] = 0
+                            for k in ["n_rev", "n_loy", "n_sco", "n_rat", "n_det", "n_poc", "n_ast", "n_aut"]: 
+                                st.session_state[k] = 0
+                                
                         st.rerun()
-
         # --- COLONNE 2 : PRINT SÉCURISÉ ---
         with col2:
             if st.button("🖨️ PRINT (BULLETIN)", use_container_width=True):
@@ -394,7 +416,7 @@ elif st.session_state.page == "MAIN_APP":
                 st.rerun()
 
     else:
-        # --- INTERFACE 2 : LE BULLETIN DE DÉPENSES ---
+# --- INTERFACE 2 : LE BULLETIN DE DÉPENSES ---
         with st.container(border=True):
             st.markdown("<h1 style='text-align: center; color: #2E7D32;'>💰 BULLETIN DES DEPENSES</h1>", unsafe_allow_html=True)
             
@@ -403,14 +425,48 @@ elif st.session_state.page == "MAIN_APP":
 
             if sel_m_base and L:
                 versions_du_mois = user_recs[(user_recs['Mois'].str.startswith(sel_m_base)) & (user_recs['Annee'].astype(str) == st.session_state.get('sel_annee'))]
+                
                 if not versions_du_mois.empty:
                     def ext_v(n): return int(n.split("Mod")[-1]) if "Mod" in n else 0
                     max_v = versions_du_mois['Mois'].apply(ext_v).max()
                     cur_v = ext_v(st.session_state.get('sel_mois_affiche', ''))
+                    
                     if cur_v == max_v:
-                        if st.button("📝 MODIFIER LA DERNIÈRE VERSION", use_container_width=True):
-                            st.session_state.inputs_locked = False
-                            st.rerun()
+                        # Bouton pour déclencher la modification
+                        if not st.session_state.get('ask_edit_pwd'):
+                            if st.button("📝 MODIFIER LA DERNIÈRE VERSION", use_container_width=True):
+                                st.session_state.ask_edit_pwd = True
+                                st.rerun()
+                        
+                        # Section de saisie du mot de passe (Login Password)
+                        if st.session_state.get('ask_edit_pwd'):
+                            with st.container(border=True):
+                                st.warning("🔐 Entrez votre mot de passe de connexion")
+                                
+                                # Clé dynamique pour vider le champ en cas d'échec
+                                edit_key = f"edit_pwd_{st.session_state.get('edit_err_count', 0)}"
+                                edit_pwd = st.text_input("PASSWORD", type="password", key=edit_key)
+                                
+                                col_v1, col_v2 = st.columns(2)
+                                with col_v1:
+                                    if st.button("🔓 VALIDER", use_container_width=True, type="primary"):
+                                        # VERIFICATION AVEC LE MOT DE PASSE DU LOGIN
+                                        if edit_pwd == st.session_state.get('current_user_pw'):
+                                            st.session_state.inputs_locked = False
+                                            st.session_state.ask_edit_pwd = False
+                                            st.session_state.edit_err_count = 0
+                                            st.success("Modification autorisée")
+                                            time.sleep(0.5)
+                                            st.rerun()
+                                        else:
+                                            st.session_state.edit_err_count = st.session_state.get('edit_err_count', 0) + 1
+                                            st.error("Incorrect Password")
+                                            time.sleep(1)
+                                            st.rerun()
+                                with col_v2:
+                                    if st.button("❌ ANNULER", use_container_width=True):
+                                        st.session_state.ask_edit_pwd = False
+                                        st.rerun()
                     else:
                         st.warning(f"⚠️ Lecture seule : Version Mod {max_v} disponible.")
                 else:
@@ -418,6 +474,7 @@ elif st.session_state.page == "MAIN_APP":
                         st.session_state.inputs_locked = False
                         st.rerun()
 
+            # --- LES CHAMPS (REVENU, LOYER, ETC.) ---
             col_m, col_a = st.columns(2)
             col_m.text_input("MOIS EN COURS", value=st.session_state.get('sel_mois_affiche',''), disabled=True)
             col_a.text_input("ANNÉE", value=st.session_state.get('sel_annee',''), disabled=True)
@@ -567,13 +624,23 @@ elif st.session_state.page == "PROGRESS":
     with st.container(border=True):
         if not st.session_state.get('prog_access_granted', False):
             st.title("📈 ANALYSE DE PROGRESSION")
-            pwd_input = st.text_input("PASSWORD", type="password")
+            
+            # --- MODIFICATION : Clé dynamique pour vider le champ si faux ---
+            pwd_key = f"pwd_prog_{st.session_state.get('pwd_error_count', 0)}"
+            pwd_input = st.text_input("PASSWORD", type="password", key=pwd_key)
+            
             if st.button("🔓 VALIDER L'ACCÈS", use_container_width=True):
                 if pwd_input == st.session_state.get('user_pw_adm_extra'):
                     st.session_state.prog_access_granted = True
+                    st.session_state.pwd_error_count = 0
                     st.rerun()
                 else:
-                    st.error("Code incorrect.")
+                    # On change la clé pour forcer Streamlit à vider le champ
+                    st.session_state.pwd_error_count = st.session_state.get('pwd_error_count', 0) + 1
+                    st.error("Incorrect Password")
+                    time.sleep(1)
+                    st.rerun()
+
             if st.button("⬅️ RETOUR"):
                 st.session_state.page = "MAIN_APP"
                 st.rerun()
@@ -596,7 +663,6 @@ elif st.session_state.page == "PROGRESS":
                 data_user['Mois_Base'] = data_user['Mois'].str.split('Mod').str[0]
                 
                 # 2. CONVERSION PRÉCISE (Date + Heure)
-                # On force le format pour être sûr que l'heure est prise en compte dans le tri
                 data_user['Date_Enregistrement'] = pd.to_datetime(
                     data_user['Date_Enregistrement'], 
                     dayfirst=True, 
@@ -605,11 +671,9 @@ elif st.session_state.page == "PROGRESS":
                 data_user = data_user.dropna(subset=['Date_Enregistrement'])
 
                 # 3. TRI CHRONOLOGIQUE PAR SECONDE
-                # On trie du plus ancien au plus récent
                 data_user = data_user.sort_values(by='Date_Enregistrement', ascending=True)
 
                 # 4. FILTRAGE : On ne garde que la dernière version (keep='last')
-                # Si JANVIER2024 a été sauvé à 10h00 puis à 10h05 (Mod1), c'est 10h05 qui reste.
                 data_final = data_user.drop_duplicates(
                     subset=['Mois_Base', 'Annee'], 
                     keep='last'
@@ -624,7 +688,6 @@ elif st.session_state.page == "PROGRESS":
                     if periode == "Par Année":
                         df_plot = data_final.groupby('Annee')[['Epargne', 'Total_Depenses']].sum()
                     else:
-                        # On utilise l'index Mois_Base pour un affichage propre
                         df_plot = data_final.set_index('Mois_Base')[['Epargne', 'Total_Depenses']]
 
                     st.write(f"### Évolution de l'Épargne ({periode})")
@@ -650,13 +713,16 @@ elif st.session_state.page == "PROGRESS":
                     total_sorties = user_deps['Montant'].sum()
                     solde_actuel = total_ep_cumulee - total_sorties
 
+                    # --- MODIFICATION : Bleu Foncé et Vert Foncé pour mobile ---
                     c1, c2 = st.columns(2)
                     with c1:
-                        st.markdown(f"""<div style="background-color:#e3f2fd; padding:10px; border-radius:5px; border-left:5px solid #2196f3;">
-                            <small>TOTAL ÉPARGNE CUMULÉE</small><br><span style="font-size:20px; font-weight:bold;">{total_ep_cumulee:,.2f} $</span></div>""", unsafe_allow_html=True)
+                        st.markdown(f"""<div style="background-color:#0D47A1; padding:10px; border-radius:5px; border-left:5px solid #64B5F6; color: white;">
+                            <small style="color: #BBDEFB;">TOTAL ÉPARGNE CUMULÉE</small><br>
+                            <span style="font-size:20px; font-weight:bold;">{total_ep_cumulee:,.2f} $</span></div>""", unsafe_allow_html=True)
                     with c2:
-                        st.markdown(f"""<div style="background-color:#f1f8e9; padding:10px; border-radius:5px; border-left:5px solid #4caf50;">
-                            <small>SOLDE ACTUEL</small><br><span style="font-size:20px; font-weight:bold;">{solde_actuel:,.2f} $</span></div>""", unsafe_allow_html=True)
+                        st.markdown(f"""<div style="background-color:#1B5E20; padding:10px; border-radius:5px; border-left:5px solid #81C784; color: white;">
+                            <small style="color: #C8E6C9;">SOLDE ACTUEL</small><br>
+                            <span style="font-size:20px; font-weight:bold;">{solde_actuel:,.2f} $</span></div>""", unsafe_allow_html=True)
 
                     st.write("")
                     if st.button("💸 ENREGISTRER UNE DÉPENSE SUR ÉPARGNE", use_container_width=True):
