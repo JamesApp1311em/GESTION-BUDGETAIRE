@@ -18,18 +18,24 @@ if 'show_menu' not in st.session_state: st.session_state.show_menu = False
 if 'dev_mode' not in st.session_state: st.session_state.dev_mode = False
 
 # --- 3. GESTION DYNAMIQUE DU STYLE CSS ---
-# Détermine la visibilité des menus système
 visibility = "hidden" if not st.session_state.dev_mode else "visible"
 
 hide_st_style = f"""
             <style>
-            /* Masquage dynamique des menus Streamlit */
-            #MainMenu {{visibility: {visibility} !important;}}
-            footer {{visibility: {visibility} !important;}}
-            header {{visibility: {visibility} !important;}}
-            .st-emotion-cache-zq5wms {{visibility: visible !important;}}
+            /* 1. Masquage TOTAL des éléments système (Bandeau, Menu, Footer) */
+            header {{ visibility: {visibility} !important; display: {"none" if not st.session_state.dev_mode else "block"} !important; }}
+            footer {{ visibility: {visibility} !important; }}
+            #MainMenu {{ visibility: {visibility} !important; }}
             
-            /* Bloquer le pull-to-refresh mobile sur toute l'app */
+            /* Cible spécifiquement le bouton Streamlit en bas à droite et le bandeau bleu */
+            div[data-testid="stToolbar"], 
+            div[data-testid="stDecoration"], 
+            div[data-testid="stStatusWidget"],
+            #viewer-badge {{
+                display: {"none" if not st.session_state.dev_mode else "block"} !important;
+            }}
+
+            /* 2. Bloquer le pull-to-refresh mobile */
             html, body, [data-testid="stAppViewContainer"], .stMain, .stApp {{
                 overscroll-behavior-y: contain !important;
                 position: fixed;
@@ -38,7 +44,6 @@ hide_st_style = f"""
                 overflow: hidden;
             }}
             
-            /* Permettre le scroll interne sans le rebond du navigateur */
             .stMain {{ 
                 overflow-y: auto !important; 
             }}
