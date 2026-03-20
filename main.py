@@ -23,47 +23,43 @@ display_mode = "none" if not st.session_state.dev_mode else "block"
 
 hide_st_style = f"""
     <style>
-    /* 1. Masquage classique */
+    /* 1. Cache le header et le footer standard */
     header {{ visibility: {visibility} !important; }}
     footer {{ visibility: {visibility} !important; }}
-    #MainMenu {{ visibility: {visibility} !important; }}
 
-    /* 2. Cible les éléments techniques tenaces (Bandeau, Decoration, Status) */
-    .stAppHeader, 
-    [data-testid="stToolbar"], 
-    [data-testid="stDecoration"],
-    [data-testid="stStatusWidget"] {{
-        display: {display_mode} !important;
+    /* 2. SOLUTION RADICALE POUR LE BAS (IMAGE 2) */
+    /* On force l'application à être au premier plan (z-index élevé) */
+    /* On ajoute une marge en bas pour éloigner le contenu des boutons fantômes */
+    .stApp {{
+        background-color: #0E1117; /* Assure que le fond est opaque */
     }}
 
-    /* 3. SOLUTION RADICALE POUR LES BOUTONS FLOTTANTS EN BAS (IMAGE 2) */
-    /* On cible les conteneurs génériques (cache) qui ne sont pas dans le flux principal (.stMain) */
-    /* et on les supprime totalement quand le mode dev est éteint */
-    
-    body > div[class*="st-emotion-cache"] {{
-        display: {display_mode} !important;
-    }}
-
-    /* On s'assure que le conteneur principal reste visible ! */
     [data-testid="stAppViewContainer"] {{
-        display: block !important;
+        z-index: 999999 !important;
+        background-color: #0E1117 !important;
+        padding-bottom: 50px !important;
+    }}
+
+    /* 3. Supprime tout ce qui flotte en dehors de l'app */
+    div[class*="st-emotion-cache-kgp75f"], 
+    div[class*="st-emotion-cache-15z92p2"],
+    .viewerBadge_container__1QSob,
+    button[title="View source"],
+    .stDeployButton {{
+        display: {display_mode} !important;
+        visibility: {visibility} !important;
+        opacity: 0 !important;
     }}
 
     /* 4. Bloquer le pull-to-refresh mobile */
-    html, body, [data-testid="stAppViewContainer"], .stMain, .stApp {{
+    html, body {{
         overscroll-behavior-y: contain !important;
-        position: fixed;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
+        overflow: hidden !important;
     }}
     
     .stMain {{ 
         overflow-y: auto !important; 
     }}
-
-    /* Styles boutons */
-    div.stButton > button:first-child {{ border-radius: 8px; }}
     </style>
 """
 st.markdown(hide_st_style, unsafe_allow_html=True)
