@@ -19,45 +19,45 @@ if 'dev_mode' not in st.session_state: st.session_state.dev_mode = False
 
 # --- 3. GESTION DYNAMIQUE DU STYLE CSS ---
 visibility = "hidden" if not st.session_state.dev_mode else "visible"
+display_mode = "none" if not st.session_state.dev_mode else "block"
 
 hide_st_style = f"""
-            <style>
-            /* 1. Masquage TOTAL des éléments système (Bandeau, Menu, Footer) */
-            header {{ visibility: {visibility} !important; display: {"none" if not st.session_state.dev_mode else "block"} !important; }}
-            footer {{ visibility: {visibility} !important; }}
-            #MainMenu {{ visibility: {visibility} !important; }}
-            
-            /* Cible spécifiquement le bouton Streamlit en bas à droite et le bandeau bleu */
-            div[data-testid="stToolbar"], 
-            div[data-testid="stDecoration"], 
-            div[data-testid="stStatusWidget"],
-            #viewer-badge {{
-                display: {"none" if not st.session_state.dev_mode else "block"} !important;
-            }}
+    <style>
+    /* 1. Masquage des menus et en-têtes classiques */
+    header {{ visibility: {visibility} !important; }}
+    footer {{ visibility: {visibility} !important; }}
+    #MainMenu {{ visibility: {visibility} !important; }}
 
-            /* 2. Bloquer le pull-to-refresh mobile */
-            html, body, [data-testid="stAppViewContainer"], .stMain, .stApp {{
-                overscroll-behavior-y: contain !important;
-                position: fixed;
-                width: 100%;
-                height: 100%;
-                overflow: hidden;
-            }}
-            
-            .stMain {{ 
-                overflow-y: auto !important; 
-            }}
+    /* 2. Cible les éléments jaunes (Bandeau Fork, Logo Crown, Toolbar) */
+    /* On les supprime totalement de l'affichage en mode non-dev */
+    .stAppHeader, 
+    .stDeployButton, 
+    [data-testid="stToolbar"], 
+    [data-testid="stDecoration"],
+    [data-testid="stStatusWidget"],
+    .viewerBadge_container__1QSob,
+    .st-emotion-cache-15z92p2,
+    .st-emotion-cache-kgp75f {{
+        display: {display_mode} !important;
+    }}
 
-            /* Styles personnalisés */
-            div.stButton > button:first-child {{ border-radius: 8px; }}
-            .main-title {{
-                text-align: center;
-                color: #1E88E5;
-                font-family: 'Arial Black', sans-serif;
-                margin-bottom: 20px;
-            }}
-            </style>
-            """
+    /* 3. Bloquer le pull-to-refresh mobile */
+    html, body, [data-testid="stAppViewContainer"], .stMain, .stApp {{
+        overscroll-behavior-y: contain !important;
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    }}
+    
+    .stMain {{ 
+        overflow-y: auto !important; 
+    }}
+
+    /* Styles boutons */
+    div.stButton > button:first-child {{ border-radius: 8px; }}
+    </style>
+"""
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
 # --- 4. INITIALISATION DES BASES DE DONNÉES ---
