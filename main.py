@@ -373,22 +373,19 @@ elif st.session_state.page == "MAIN_APP":
                         if choix_pdf:
                             row_selected = user_recs[user_recs['Mois'] == choix_pdf].iloc[0]
                             
-                            try:
-                                # Génération directe
-                                pdf_data = create_pdf(row_selected)
-                                
-                                # Si c'est déjà des bytes ou bytearray, Streamlit l'accepte. 
-                                # On s'assure juste que ce n'est pas vide.
-                                if pdf_data:
-                                    st.download_button(
-                                        label="📥 Télécharger PDF", 
-                                        data=pdf_data, # On passe directement la variable
-                                        file_name=f"Bulletin_{choix_pdf}.pdf", 
-                                        mime="application/pdf", 
-                                        use_container_width=True
-                                    )
-                            except Exception as e:
-                                st.error(f"Erreur lors de la génération du PDF : {e}")
+                            # GÉNÉRATION ET CONVERSION FORCÉE EN BYTES
+                            pdf_raw = create_pdf(row_selected)
+                            pdf_final = bytes(pdf_raw) # <--- C'EST CETTE LIGNE QUI RÉGLE L'ERREUR BYTEARRAY
+                            
+                            st.download_button(
+                                label="📥 Télécharger PDF", 
+                                data=pdf_final, 
+                                file_name=f"Bulletin_{choix_pdf}.pdf", 
+                                mime="application/pdf", 
+                                use_container_width=True
+                            )
+                    else:
+                        st.warning("Aucune donnée.")
         # --- ADMIN & PROGRESSION ---
         c_adm, c_prog = st.columns(2)
         with c_adm:
