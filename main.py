@@ -130,7 +130,7 @@ def create_pdf(row):
     pdf.cell(190, 5, f"Document généré le {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}", 0, 1, 'R')
 
     # RETOUR BINAIRE CORRECT
-    return pdf.output(dest='S')
+    return pdf.output()
 
 # --- 3. GESTION DU SESSION STATE (MÉMOIRE DE L'APP) ---
 if 'page' not in st.session_state: st.session_state.page = "ACCEUIL"
@@ -373,23 +373,22 @@ elif st.session_state.page == "MAIN_APP":
                         if choix_pdf:
                             row_selected = user_recs[user_recs['Mois'] == choix_pdf].iloc[0]
                             
-                            # 1. On génère le PDF (via ta fonction avec dest='S')
-                            pdf_raw = create_pdf(row_selected)
-                            
-                            # 2. LOGIQUE INTÉGRÉE : Conversion explicite pour Streamlit/Replit
-                            # Cela transforme le 'bytearray' en 'bytes' pur et évite l'erreur de format
-                            pdf_final = bytes(pdf_raw)
-                            
-                            # 3. Le bouton de téléchargement utilise les données nettoyées
-                            st.download_button(
-                                label="📥 Télécharger PDF", 
-                                data=pdf_final, 
-                                file_name=f"Bulletin_{choix_pdf}.pdf", 
-                                mime="application/pdf", 
-                                use_container_width=True
-                            )
-                    else:
-                        st.warning("Aucune donnée.")
+                            try:
+                                # Génération directe
+                                pdf_data = create_pdf(row_selected)
+                                
+                                # Si c'est déjà des bytes ou bytearray, Streamlit l'accepte. 
+                                # On s'assure juste que ce n'est pas vide.
+                                if pdf_data:
+                                    st.download_button(
+                                        label="📥 Télécharger PDF", 
+                                        data=pdf_data, # On passe directement la variable
+                                        file_name=f"Bulletin_{choix_pdf}.pdf", 
+                                        mime="application/pdf", 
+                                        use_container_width=True
+                                    )
+                            except Exception as e:
+                                st.error(f"Erreur lors de la génération du PDF : {e}")
         # --- ADMIN & PROGRESSION ---
         c_adm, c_prog = st.columns(2)
         with c_adm:
