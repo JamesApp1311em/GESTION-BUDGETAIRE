@@ -23,25 +23,33 @@ display_mode = "none" if not st.session_state.dev_mode else "block"
 
 hide_st_style = f"""
     <style>
-    /* 1. Masquage des menus et en-têtes classiques */
+    /* 1. Masquage classique */
     header {{ visibility: {visibility} !important; }}
     footer {{ visibility: {visibility} !important; }}
     #MainMenu {{ visibility: {visibility} !important; }}
 
-    /* 2. Cible les éléments jaunes (Bandeau Fork, Logo Crown, Toolbar) */
-    /* On les supprime totalement de l'affichage en mode non-dev */
+    /* 2. Cible les éléments techniques tenaces (Bandeau, Decoration, Status) */
     .stAppHeader, 
-    .stDeployButton, 
     [data-testid="stToolbar"], 
     [data-testid="stDecoration"],
-    [data-testid="stStatusWidget"],
-    .viewerBadge_container__1QSob,
-    .st-emotion-cache-15z92p2,
-    .st-emotion-cache-kgp75f {{
+    [data-testid="stStatusWidget"] {{
         display: {display_mode} !important;
     }}
 
-    /* 3. Bloquer le pull-to-refresh mobile */
+    /* 3. SOLUTION RADICALE POUR LES BOUTONS FLOTTANTS EN BAS (IMAGE 2) */
+    /* On cible les conteneurs génériques (cache) qui ne sont pas dans le flux principal (.stMain) */
+    /* et on les supprime totalement quand le mode dev est éteint */
+    
+    body > div[class*="st-emotion-cache"] {{
+        display: {display_mode} !important;
+    }}
+
+    /* On s'assure que le conteneur principal reste visible ! */
+    [data-testid="stAppViewContainer"] {{
+        display: block !important;
+    }}
+
+    /* 4. Bloquer le pull-to-refresh mobile */
     html, body, [data-testid="stAppViewContainer"], .stMain, .stApp {{
         overscroll-behavior-y: contain !important;
         position: fixed;
