@@ -130,7 +130,7 @@ def create_pdf(row):
     pdf.cell(190, 5, f"Document généré le {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}", 0, 1, 'R')
 
     # RETOUR BINAIRE CORRECT
-    return pdf.output()
+    return pdf.output(dest='S').encode('latin-1')
 
 # --- 3. GESTION DU SESSION STATE (MÉMOIRE DE L'APP) ---
 if 'page' not in st.session_state: st.session_state.page = "ACCEUIL"
@@ -373,19 +373,17 @@ elif st.session_state.page == "MAIN_APP":
                         if choix_pdf:
                             row_selected = user_recs[user_recs['Mois'] == choix_pdf].iloc[0]
                             
-                            # GÉNÉRATION ET CONVERSION FORCÉE EN BYTES
-                            pdf_raw = create_pdf(row_selected)
-                            pdf_final = bytes(pdf_raw) # <--- C'EST CETTE LIGNE QUI RÉGLE L'ERREUR BYTEARRAY
+                            # On génère les bytes directement
+                            pdf_bytes = create_pdf(row_selected)
                             
+                            # On passe pdf_bytes directement à data
                             st.download_button(
                                 label="📥 Télécharger PDF", 
-                                data=pdf_final, 
+                                data=pdf_bytes, 
                                 file_name=f"Bulletin_{choix_pdf}.pdf", 
                                 mime="application/pdf", 
                                 use_container_width=True
                             )
-                    else:
-                        st.warning("Aucune donnée.")
         # --- ADMIN & PROGRESSION ---
         c_adm, c_prog = st.columns(2)
         with c_adm:
