@@ -5,30 +5,57 @@ import time
 from fpdf import FPDF
 import datetime
 
-# --- CONFIGURATION DE LA PAGE ---
+# --- 1. CONFIGURATION DE LA PAGE (DOIT ÊTRE EN PREMIER) ---
 st.set_page_config(page_title="Gestionnaire de Dépenses", layout="centered", initial_sidebar_state="expanded")
 
-# --- STYLE CSS PERSONNALISÉ ---
-hide_st_style = """
+# --- 2. INITIALISATION DU SESSION STATE ---
+if 'page' not in st.session_state: st.session_state.page = "ACCEUIL"
+if 'inputs_locked' not in st.session_state: st.session_state.inputs_locked = True 
+if 'confirm_exit' not in st.session_state: st.session_state.confirm_exit = False
+if 'show_extend_table' not in st.session_state: st.session_state.show_extend_table = False
+if 'current_user' not in st.session_state: st.session_state.current_user = None
+if 'show_menu' not in st.session_state: st.session_state.show_menu = False
+if 'dev_mode' not in st.session_state: st.session_state.dev_mode = False
+
+# --- 3. GESTION DYNAMIQUE DU STYLE CSS ---
+# Détermine la visibilité des menus système
+visibility = "hidden" if not st.session_state.dev_mode else "visible"
+
+hide_st_style = f"""
             <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
-            .st-emotion-cache-zq5wms {visibility: visible !important;}
-            body { overscroll-behavior-y: contain; }
-            html { overscroll-behavior-y: contain; }
-            div.stButton > button:first-child { border-radius: 8px; }
-            .main-title {
+            /* Masquage dynamique des menus Streamlit */
+            #MainMenu {{visibility: {visibility} !important;}}
+            footer {{visibility: {visibility} !important;}}
+            header {{visibility: {visibility} !important;}}
+            .st-emotion-cache-zq5wms {{visibility: visible !important;}}
+            
+            /* Bloquer le pull-to-refresh mobile sur toute l'app */
+            html, body, [data-testid="stAppViewContainer"], .stMain, .stApp {{
+                overscroll-behavior-y: contain !important;
+                position: fixed;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+            }}
+            
+            /* Permettre le scroll interne sans le rebond du navigateur */
+            .stMain {{ 
+                overflow-y: auto !important; 
+            }}
+
+            /* Styles personnalisés */
+            div.stButton > button:first-child {{ border-radius: 8px; }}
+            .main-title {{
                 text-align: center;
                 color: #1E88E5;
                 font-family: 'Arial Black', sans-serif;
                 margin-bottom: 20px;
-            }
+            }}
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
-# --- 1. INITIALISATION DES BASES DE DONNÉES ---
+# --- 4. INITIALISATION DES BASES DE DONNÉES ---
 FILE_CLIENTS = 'clients.csv'
 FILE_DATA = 'historique_complet.csv'
 
@@ -47,7 +74,7 @@ def init_db():
 
 init_db()
 
-# --- 2. FONCTIONS TECHNIQUES ---
+# --- 5. FONCTIONS TECHNIQUES ---
 
 def create_pdf(row):
     """Génère le bulletin de paie au format PDF"""
@@ -132,14 +159,7 @@ def create_pdf(row):
     # RETOUR BINAIRE CORRECT
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 3. GESTION DU SESSION STATE (MÉMOIRE DE L'APP) ---
-if 'page' not in st.session_state: st.session_state.page = "ACCEUIL"
-if 'inputs_locked' not in st.session_state: st.session_state.inputs_locked = True 
-if 'confirm_exit' not in st.session_state: st.session_state.confirm_exit = False
-if 'show_extend_table' not in st.session_state: st.session_state.show_extend_table = False
-if 'current_user' not in st.session_state: st.session_state.current_user = None
-if 'show_menu' not in st.session_state: st.session_state.show_menu = False
-
+# --- LOGIQUE DES PAGES (A SUIVRE...) ---
 # --- 4. LOGIQUE DE FERMETURE (QUITTER L'APP) ---
 if st.session_state.confirm_exit:
     with st.container(border=True):
@@ -248,11 +268,23 @@ elif st.session_state.page == "APP_ADM":
         st.markdown("<h2 style='text-align: center;'>🖥️ ADMINISTRATION GÉNÉRALE</h2>", unsafe_allow_html=True)
         st.write("Gestion des comptes utilisateurs et accès système.")
 
-        # --- LOGIQUE EXTEND ---
-        if st.button("📂 EXTEND", use_container_width=True):
-            st.session_state.show_extend_table = not st.session_state.show_extend_table
+        # --- NOUVELLE LIGNE DE BOUTONS ---
+        col_ext, col_dev = st.columns(2)
 
-        if st.session_state.show_extend_table:
+        # Bouton EXTEND réduit à gauche
+        with col_ext:
+            if st.button("📂 EXTEND", use_container_width=True):
+                st.session_state.show_extend_table = not st.session_state.get('show_extend_table', False)
+
+        # Bouton OPTIONS DÉVELOPPEUR à droite
+        with col_dev:
+            label_dev = "🔒 CACHER MENUS" if st.session_state.get('dev_mode') else "🔓 OPTIONS DEV"
+            if st.button(label_dev, use_container_width=True):
+                st.session_state.dev_mode = not st.session_state.get('dev_mode', False)
+                st.rerun()
+
+        # Affichage de la table EXTEND si activé
+        if st.session_state.get('show_extend_table'):
             st.write("### Base de données complète des utilisateurs")
             df_full = pd.read_csv(FILE_CLIENTS, dtype=str)
             st.dataframe(df_full, use_container_width=True)
@@ -269,11 +301,13 @@ elif st.session_state.page == "APP_ADM":
                 is_active = row['status'].lower() in ['true', 'active']
                 status_label = "ACTIVE" if is_active else "BLOCKED"
 
+                # Checkbox de statut
                 if c2.checkbox(f"Statut: {status_label}", value=is_active, key=f"chk_{idx}") != is_active:
                     df_adm.at[idx, 'status'] = "Active" if not is_active else "Blocked"
                     df_adm.to_csv(FILE_CLIENTS, index=False)
                     st.rerun()
 
+                # Bouton supprimer
                 if c3.button("🗑️", key=f"btn_del_{idx}"):
                     df_adm.drop(idx).to_csv(FILE_CLIENTS, index=False)
                     st.rerun()
