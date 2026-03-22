@@ -5,15 +5,22 @@ import time
 from fpdf import FPDF
 import datetime
 
-# --- GESTION SÉCURISÉE DE LA BASE DE DONNÉES ---
+# --- GESTION INTELLIGENTE DE LA BASE DE DONNÉES ---
 try:
     from replit import db
     use_replit_db = True
 except ImportError:
-    # Si on est sur téléphone/Streamlit Cloud, on utilise un dictionnaire vide
-    # ou une autre méthode pour éviter le crash
-    db = {} 
+    # Si on est sur téléphone/Cloud, on simule l'objet Replit DB
+    # pour que les fonctions comme .prefix() ne fassent pas planter l'app
+    class FakeDB(dict):
+        def prefix(self, p):
+            # Simule la recherche de clés commençant par le préfixe p
+            return [k for k in self.keys() if k.startswith(p)]
+    
+    db = FakeDB()
     use_replit_db = False
+    # Petit message d'alerte discret (optionnel)
+    # st.sidebar.warning("⚠️ Mode local : Données Replit non synchronisées.")
 
 # --- 1. CONFIGURATION DE LA PAGE (DOIT ÊTRE EN PREMIER) ---
 st.set_page_config(
