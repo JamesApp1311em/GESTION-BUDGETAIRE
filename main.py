@@ -1,4 +1,5 @@
 import streamlit as st
+from replit import db  # <--- AJOUTER CECI ICI
 import pandas as pd
 import os
 import time
@@ -108,6 +109,42 @@ def init_db():
 
 
 init_db()
+# --- AJOUTER CES FONCTIONS ICI ---
+
+
+def sauvegarder_utilisateur_db(username, pw_open, pw_adm, pw_user_adm, status="Active"):
+    """Enregistre ou met à jour un profil utilisateur dans Replit DB"""
+    db[f"user_profile_{username}"] = {
+        "pw_open_modify": pw_open,
+        "pw_adm_print_prog": pw_adm,
+        "pw_user_adm": pw_user_adm,
+        "status": status,
+    }
+
+
+def sauvegarder_data_db(username, mois, annee, revenu, depenses_dict, total, epargne):
+    """Enregistre une entrée budgétaire dans Replit DB"""
+    key = f"data_{username}_{mois}_{annee}"
+    db[key] = {
+        "Utilisateur": username,
+        "Mois": mois,
+        "Annee": annee,
+        "Revenu": revenu,
+        "Depenses": depenses_dict,  # On stocke le dictionnaire complet
+        "Total_Depenses": total,
+        "Epargne": epargne,
+        "Date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
+
+
+def recuperer_historique_db(username):
+    """Récupère toutes les données d'un utilisateur depuis Replit DB"""
+    historique = []
+    # On cherche toutes les clés qui commencent par 'data_NomUtilisateur'
+    for key in db.prefix(f"data_{username}"):
+        historique.append(db[key])
+    return pd.DataFrame(historique)
+
 
 # --- 5. FONCTIONS TECHNIQUES ---
 
@@ -225,29 +262,28 @@ elif st.session_state.page == "ACCEUIL":
         u_p = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password")
 
         if st.button("🚀 OPEN APP", use_container_width=True):
-            df = pd.read_csv(FILE_CLIENTS, dtype=str).fillna("")
-            user_match = df[df["name"].str.strip() == str(u_n).strip()]
+            # ON CHERCHE DANS LA DB AU LIEU DU CSV
+            user_key = f"user_profile_{u_n}"
 
-            if (
-                not user_match.empty
-                and user_match.iloc[0]["pw_open_modify"] == str(u_p).strip()
-            ):
-                if user_match.iloc[0]["status"].lower() in ["true", "active"]:
-                    st.session_state.update(
-                        {
-                            "current_user": u_n,
-                            "user_pw_open": str(u_p).strip(),
-                            "user_pw_adm_extra": user_match.iloc[0][
-                                "pw_adm_print_prog"
-                            ],
-                            "page": "MAIN_APP",
-                        }
-                    )
-                    st.rerun()
+            if user_key in db:
+                user_data = db[user_key]
+                if user_data["pw_open_modify"] == str(u_p).strip():
+                    if user_data["status"].lower() in ["true", "active"]:
+                        st.session_state.update(
+                            {
+                                "current_user": u_n,
+                                "user_pw_open": str(u_p).strip(),
+                                "user_pw_adm_extra": user_data["pw_adm_print_prog"],
+                                "page": "MAIN_APP",
+                            }
+                        )
+                        st.rerun()
+                    else:
+                        st.error("⚠️ Compte bloqué.")
                 else:
-                    st.error("⚠️ Votre compte est bloqué. Contactez l'administrateur.")
+                    st.error("❌ Mot de passe incorrect.")
             else:
-                st.error("❌ Nom d'utilisateur ou mot de passe incorrect.")
+                st.error("❌ Utilisateur inexistant dans la base persistante.")
 
         st.write("---")
         st.write("### Autres options d'accès")
@@ -281,24 +317,14 @@ elif st.session_state.page == "LOGIN":
         new_p2 = st.text_input("PASSWORD (ADM / PRINT / PROGRESS)", type="password")
         new_p3 = st.text_input("PASSWORD (USER ADM)", type="password")
 
-        if st.button(
-            "💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="primary"
-        ):
+        if st.button("💾 ENREGISTRER L'UTILISATEUR", use_container_width=True):
             if new_n and new_p1 and new_p2 and new_p3:
-                df_clients = pd.read_csv(FILE_CLIENTS, dtype=str)
-                if new_n in df_clients["name"].values:
+                user_key = f"user_profile_{new_n}"
+                if user_key in db:
                     st.error("Ce nom d'utilisateur existe déjà.")
                 else:
-                    new_entry = {
-                        "name": new_n,
-                        "pw_open_modify": new_p1,
-                        "pw_adm_print_prog": new_p2,
-                        "pw_user_adm": new_p3,
-                        "status": "Active",
-                    }
-                    pd.concat(
-                        [df_clients, pd.DataFrame([new_entry])], ignore_index=True
-                    ).to_csv(FILE_CLIENTS, index=False)
+                    # SAUVEGARDE PERSISTANTE DANS REPLIT DB
+                    sauvegarder_utilisateur_db(new_n, new_p1, new_p2, new_p3)
                     st.success(f"Compte pour '{new_n}' créé avec succès !")
                     st.session_state.page = "ACCEUIL"
                     st.rerun()
@@ -333,64 +359,138 @@ elif st.session_state.page == "APP_ADM":
         )
         st.write("Gestion des comptes utilisateurs et accès système.")
 
-        # --- NOUVELLE LIGNE DE BOUTONS ---
+        # --- LIGNE DE BOUTONS ---
         col_ext, col_dev = st.columns(2)
 
-        # Bouton EXTEND réduit à gauche
         with col_ext:
             if st.button("📂 EXTEND", use_container_width=True):
-                st.session_state.show_extend_table = not st.session_state.get(
-                    "show_extend_table", False
-                )
+                st.session_state.show_extend_table = not st.session_state.get("show_extend_table", False)
 
-        # Bouton OPTIONS DÉVELOPPEUR à droite
         with col_dev:
-            label_dev = (
-                "🔒 CACHER MENUS"
-                if st.session_state.get("dev_mode")
-                else "🔓 OPTIONS DEV"
-            )
+            label_dev = "🔒 CACHER MENUS" if st.session_state.get("dev_mode") else "🔓 OPTIONS DEV"
             if st.button(label_dev, use_container_width=True):
                 st.session_state.dev_mode = not st.session_state.get("dev_mode", False)
                 st.rerun()
 
+        # --- RÉCUPÉRATION DES DONNÉES DEPUIS REPLIT DB ---
+        # On cherche toutes les clés qui commencent par 'user_profile_'
+        all_users = []
+        for key in db.prefix("user_profile_"):
+            user_data = db[key]
+            # On ajoute le nom (extrait de la clé ou stocké dedans)
+            username = key.replace("user_profile_", "")
+            all_users.append({
+                "name": username,
+                "status": user_data.get("status", "Active"),
+                "pw_open": user_data.get("pw_open_modify"),
+                "pw_adm": user_data.get("pw_adm_print_prog"),
+                "pw_user_adm": user_data.get("pw_user_adm")
+            })
+        
+        df_adm = pd.DataFrame(all_users)
+
         # Affichage de la table EXTEND si activé
-        if st.session_state.get("show_extend_table"):
+        if st.session_state.get("show_extend_table") and not df_adm.empty:
             st.write("### Base de données complète des utilisateurs")
-            df_full = pd.read_csv(FILE_CLIENTS, dtype=str)
-            st.dataframe(df_full, use_container_width=True)
+            st.dataframe(df_adm, use_container_width=True)
             st.write("---")
 
         st.subheader("Liste des comptes et Status")
-        df_adm = pd.read_csv(FILE_CLIENTS, dtype=str).fillna("")
+        
+        if df_adm.empty:
+            st.warning("Aucun utilisateur trouvé dans la base de données.")
+        else:
+            for idx, row in df_adm.iterrows():
+                with st.container(border=True):
+                    c1, c2, c3 = st.columns([2, 1, 1])
+                    c1.write(f"👤 **{row['name']}**")
 
-        for idx, row in df_adm.iterrows():
-            with st.container(border=True):
-                c1, c2, c3 = st.columns([2, 1, 1])
-                c1.write(f"👤 **{row['name']}**")
+                    is_active = row["status"].lower() == "active"
+                    status_label = "ACTIVE" if is_active else "BLOCKED"
 
-                is_active = row["status"].lower() in ["true", "active"]
-                status_label = "ACTIVE" if is_active else "BLOCKED"
+                    # Checkbox de statut
+                    if c2.checkbox(f"Statut: {status_label}", value=is_active, key=f"chk_{row['name']}"):
+                        if not is_active: # Si on coche alors qu'il était bloqué
+                            db[f"user_profile_{row['name']}"]["status"] = "Active"
+                            st.rerun()
+                    else:
+                        if is_active: # Si on décoche alors qu'il était actif
+                            db[f"user_profile_{row['name']}"]["status"] = "Blocked"
+                            st.rerun()
 
-                # Checkbox de statut
-                if (
-                    c2.checkbox(
-                        f"Statut: {status_label}", value=is_active, key=f"chk_{idx}"
-                    )
-                    != is_active
-                ):
-                    df_adm.at[idx, "status"] = "Active" if not is_active else "Blocked"
-                    df_adm.to_csv(FILE_CLIENTS, index=False)
-                    st.rerun()
-
-                # Bouton supprimer
-                if c3.button("🗑️", key=f"btn_del_{idx}"):
-                    df_adm.drop(idx).to_csv(FILE_CLIENTS, index=False)
-                    st.rerun()
+                    # Bouton supprimer
+                    if c3.button("🗑️", key=f"btn_del_{row['name']}"):
+                        del db[f"user_profile_{row['name']}"]
+                        st.rerun()
 
         if st.button("⬅️ QUITTER L'ADMINISTRATION", use_container_width=True):
             st.session_state.page = "ACCEUIL"
             st.rerun()
+            #  VERIF USER ADM (ACCÈS AU PROFIL) ---
+elif st.session_state.page == "VERIF_USER_ADM":
+    with st.container(border=True):
+        st.subheader("Authentification Profil Utilisateur")
+        u_name = st.text_input("NOM D'UTILISATEUR")
+        u_pass_adm = st.text_input("MOT DE PASSE (USER ADM)", type="password")
+        
+        if st.button("ACCÉDER AU PROFIL", use_container_width=True):
+            user_key = f"user_profile_{u_name}"
+            if user_key in db:
+                if db[user_key].get("pw_user_adm") == u_pass_adm:
+                    st.session_state.temp_user = u_name # On stocke l'utilisateur à modifier
+                    st.session_state.page = "EDIT_PROFILE"
+                    st.rerun()
+                else:
+                    st.error("Mot de passe USER ADM incorrect.")
+            else:
+                st.error("Utilisateur introuvable.")
+        
+        if st.button("⬅️ RETOUR"):
+            st.session_state.page = "ACCEUIL"
+            st.rerun()
+
+# --- 10. PAGE : EDIT PROFILE (MODIFICATION) ---
+elif st.session_state.page == "EDIT_PROFILE":
+    u_name = st.session_state.get("temp_user")
+    user_data = db[f"user_profile_{u_name}"]
+    
+    with st.container(border=True):
+        st.header(f"Profil de : {u_name}")
+        
+        # Mode lecture par défaut, déverrouillé si besoin
+        if "edit_mode" not in st.session_state:
+            st.session_state.edit_mode = False
+
+        # Affichage des champs
+        new_p1 = st.text_input("PASSWORD (OPEN APP / MODIFY)", value=user_data["pw_open_modify"], type="password" if not st.session_state.edit_mode else "default", disabled=not st.session_state.edit_mode)
+        new_p2 = st.text_input("PASSWORD (ADM / PRINT / PROGRESS)", value=user_data["pw_adm_print_prog"], type="password" if not st.session_state.edit_mode else "default", disabled=not st.session_state.edit_mode)
+        new_p3 = st.text_input("PASSWORD (USER ADM)", value=user_data["pw_user_adm"], type="password" if not st.session_state.edit_mode else "default", disabled=not st.session_state.edit_mode)
+
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if not st.session_state.edit_mode:
+                if st.button("🔓 MODIFIER VOS PASSWORDS", use_container_width=True):
+                    st.session_state.edit_mode = True
+                    st.rerun()
+            else:
+                if st.button("💾 SAVE MODIFICATIONS", use_container_width=True, type="primary"):
+                    # Vérification si changement
+                    if (new_p1 == user_data["pw_open_modify"] and 
+                        new_p2 == user_data["pw_adm_print_prog"] and 
+                        new_p3 == user_data["pw_user_adm"]):
+                        st.info("Aucune modification n'a été faite.")
+                    else:
+                        sauvegarder_utilisateur_db(u_name, new_p1, new_p2, new_p3, user_data.get("status", "Active"))
+                        st.success("Modifications enregistrées !")
+                        st.session_state.edit_mode = False
+                        st.rerun()
+
+        with col2:
+            if st.button("⬅️ QUITTER / RETOUR", use_container_width=True):
+                st.session_state.edit_mode = False
+                st.session_state.page = "ACCEUIL"
+                st.rerun()
 # --- 9. PAGE : MAIN APP (APPLICATION PRINCIPALE) ---
 elif st.session_state.page == "MAIN_APP":
     # 1. Chargement des données AU DÉBUT du bloc
@@ -943,42 +1043,78 @@ elif st.session_state.page == "PROGRESS":
 
                 # --- 🟢 INTERFACE 1 : GRAPHIQUES ---
                 if not is_mode_2:
-                    c_f1, c_f2 = st.columns(2)
+                    import altair as alt
+
+                    c_f1, c_f2, c_f3 = st.columns(3)
                     type_graph = c_f1.selectbox(
                         "Type de graphique", ["Courbe", "Barre", "Aire", "Points"]
                     )
                     periode = c_f2.selectbox(
                         "Période d'analyse", ["Par Mois", "Par Année"]
                     )
+                    step_scale = c_f3.selectbox(
+                        "Échelle (Palier)", [50, 100, 200, 500, 1000], index=4
+                    )
 
+                    # Préparation des données (on reset l'index pour Altair)
                     if periode == "Par Année":
-                        df_plot = data_final.groupby("Annee")[
-                            ["Epargne", "Total_Depenses"]
-                        ].sum()
+                        df_plot = data_final.groupby("Annee")[["Epargne", "Total_Depenses"]].sum().reset_index()
+                        x_col = "Annee"
                     else:
-                        df_plot = data_final.set_index("Mois_Base")[
-                            ["Epargne", "Total_Depenses"]
-                        ]
+                        df_plot = data_final.copy().reset_index()
+                        x_col = "Mois_Base"
+
+                    # --- CALCUL RIGOUREUX DE L'ÉCHELLE FIXE (VOTRE LOGIQUE) ---
+                    if not df_plot.empty:
+                        val_max_absolue = df_plot[["Epargne", "Total_Depenses"]].max().max()
+                        nb_paliers = int(val_max_absolue // step_scale) + 3
+                        y_limit_fixe = nb_paliers * step_scale
+                    else:
+                        y_limit_fixe = 1000
 
                     st.write(f"### Évolution de l'Épargne ({periode})")
+
+                    # Création du graphique principal avec l'axe Y bloqué à y_limit_fixe
+                    base = alt.Chart(df_plot).encode(
+                        x=alt.X(f"{x_col}:N", title=periode)
+                    )
+
                     if type_graph == "Courbe":
-                        st.line_chart(df_plot["Epargne"], color="#2e7d32")
+                        chart = base.mark_line(color="#2e7d32", point=True)
                     elif type_graph == "Barre":
-                        st.bar_chart(df_plot["Epargne"], color="#2e7d32")
+                        chart = base.mark_bar(color="#2e7d32")
                     elif type_graph == "Aire":
-                        st.area_chart(df_plot["Epargne"], color="#2e7d32")
+                        chart = base.mark_area(color="#2e7d32", opacity=0.5)
                     else:
-                        st.scatter_chart(df_plot["Epargne"])
+                        chart = base.mark_point(color="#2e7d32", size=80)
+
+                    # Application de l'échelle fixe de 0 à y_limit_fixe
+                    final_chart = chart.encode(
+                        y=alt.Y("Epargne:Q", scale=alt.Scale(domain=[0, y_limit_fixe]), title="Montant $")
+                    ).properties(height=400)
+
+                    st.altair_chart(final_chart, use_container_width=True)
 
                     st.write("### Comparaison Épargne vs Dépenses")
-                    st.bar_chart(df_plot[["Epargne", "Total_Depenses"]])
+                    
+                    # Graphique de comparaison groupé (fixe également)
+                    comp_df = df_plot.melt(id_vars=[x_col], value_vars=["Epargne", "Total_Depenses"])
+                    
+                    comp_chart = alt.Chart(comp_df).mark_bar().encode(
+                        x=alt.X("variable:N", title=None),
+                        y=alt.Y("value:Q", scale=alt.Scale(domain=[0, y_limit_fixe]), title="Montant $"),
+                        color=alt.Color("variable:N", scale=alt.Scale(range=["#2e7d32", "#1976d2"])),
+                        column=alt.Column(f"{x_col}:N", title=periode)
+                    ).properties(width=80, height=300)
+
+                    st.altair_chart(comp_chart)
+                    
                     st.write("---")
 
                     if st.button("🔒 VERROUILLER ET QUITTER", use_container_width=True):
                         st.session_state.prog_access_granted = False
                         st.session_state.page = "MAIN_APP"
                         st.rerun()
-
                 # --- 🟠 INTERFACE 2 : GESTION DES DÉPENSES ---
                 else:
                     total_ep_cumulee = data_final["Epargne"].astype(float).sum()
