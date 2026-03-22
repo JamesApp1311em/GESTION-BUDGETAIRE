@@ -1,10 +1,19 @@
 import streamlit as st
-from replit import db  # <--- AJOUTER CECI ICI
 import pandas as pd
 import os
 import time
 from fpdf import FPDF
 import datetime
+
+# --- GESTION SÉCURISÉE DE LA BASE DE DONNÉES ---
+try:
+    from replit import db
+    use_replit_db = True
+except ImportError:
+    # Si on est sur téléphone/Streamlit Cloud, on utilise un dictionnaire vide
+    # ou une autre méthode pour éviter le crash
+    db = {} 
+    use_replit_db = False
 
 # --- 1. CONFIGURATION DE LA PAGE (DOIT ÊTRE EN PREMIER) ---
 st.set_page_config(
