@@ -434,12 +434,13 @@ elif st.session_state.page == "APP_ADM":
                 st.session_state.dev_mode = not st.session_state.get("dev_mode", False)
                 st.rerun()
 
-        # --- RÉCUPÉRATION DES DONNÉES DEPUIS REPLIT DB ---
-        # On cherche toutes les clés qui commencent par 'user_profile_'
+        # --- RÉCUPÉRATION DES DONNÉES (REPLIT + CSV) ---
         all_users = []
-        for key in db.prefix("user_profile_"):
+        
+        # 1. On cherche d'abord dans Replit DB
+        keys = db.prefix("user_profile_")
+        for key in keys:
             user_data = db[key]
-            # On ajoute le nom (extrait de la clé ou stocké dedans)
             username = key.replace("user_profile_", "")
             all_users.append({
                 "name": username,
@@ -449,9 +450,22 @@ elif st.session_state.page == "APP_ADM":
                 "pw_user_adm": user_data.get("pw_user_adm")
             })
         
+        # 2. Si la liste est vide (cas Streamlit Cloud), on charge depuis le CSV
+        if not all_users and os.path.exists(FILE_CLIENTS):
+            df_csv = pd.read_csv(FILE_CLIENTS)
+            if not df_csv.empty:
+                for _, row_csv in df_csv.iterrows():
+                    all_users.append({
+                        "name": row_csv["name"],
+                        "status": row_csv["status"],
+                        "pw_open": row_csv["pw_open_modify"],
+                        "pw_adm": row_csv["pw_adm_print_prog"],
+                        "pw_user_adm": row_csv["pw_user_adm"]
+                    })
+        
         df_adm = pd.DataFrame(all_users)
 
-        # Affichage de la table EXTEND si activé
+        # Affichage de la table EXTEND
         if st.session_state.get("show_extend_table") and not df_adm.empty:
             st.write("### Base de données complète des utilisateurs")
             st.dataframe(df_adm, use_container_width=True)
@@ -460,35 +474,54 @@ elif st.session_state.page == "APP_ADM":
         st.subheader("Liste des comptes et Status")
         
         if df_adm.empty:
-            st.warning("Aucun utilisateur trouvé dans la base de données.")
+            st.warning("Aucun utilisateur trouvé dans la base de données (CSV ou Replit).")
         else:
             for idx, row in df_adm.iterrows():
                 with st.container(border=True):
                     c1, c2, c3 = st.columns([2, 1, 1])
                     c1.write(f"👤 **{row['name']}**")
 
-                    is_active = row["status"].lower() == "active"
+                    is_active = str(row["status"]).lower() in ["active", "true"]
                     status_label = "ACTIVE" if is_active else "BLOCKED"
 
-                    # Checkbox de statut
+                    # Checkbox de statut (Mise à jour DB + CSV)
                     if c2.checkbox(f"Statut: {status_label}", value=is_active, key=f"chk_{row['name']}"):
-                        if not is_active: # Si on coche alors qu'il était bloqué
-                            db[f"user_profile_{row['name']}"]["status"] = "Active"
+                        if not is_active: # On active
+                            new_status = "Active"
+                            if f"user_profile_{row['name']}" in db:
+                                db[f"user_profile_{row['name']}"]["status"] = new_status
+                            # Mise à jour CSV
+                            df_upd = pd.read_csv(FILE_CLIENTS)
+                            df_upd.loc[df_upd['name'] == row['name'], 'status'] = new_status
+                            df_upd.to_csv(FILE_CLIENTS, index=False)
                             st.rerun()
                     else:
-                        if is_active: # Si on décoche alors qu'il était actif
-                            db[f"user_profile_{row['name']}"]["status"] = "Blocked"
+                        if is_active: # On bloque
+                            new_status = "Blocked"
+                            if f"user_profile_{row['name']}" in db:
+                                db[f"user_profile_{row['name']}"]["status"] = new_status
+                            # Mise à jour CSV
+                            df_upd = pd.read_csv(FILE_CLIENTS)
+                            df_upd.loc[df_upd['name'] == row['name'], 'status'] = new_status
+                            df_upd.to_csv(FILE_CLIENTS, index=False)
                             st.rerun()
 
-                    # Bouton supprimer
+                    # Bouton supprimer (Supprime de DB + CSV)
                     if c3.button("🗑️", key=f"btn_del_{row['name']}"):
-                        del db[f"user_profile_{row['name']}"]
+                        # Supprimer de Replit DB
+                        if f"user_profile_{row['name']}" in db:
+                            del db[f"user_profile_{row['name']}"]
+                        # Supprimer du CSV
+                        df_upd = pd.read_csv(FILE_CLIENTS)
+                        df_upd = df_upd[df_upd['name'] != row['name']]
+                        df_upd.to_csv(FILE_CLIENTS, index=False)
                         st.rerun()
 
         if st.button("⬅️ QUITTER L'ADMINISTRATION", use_container_width=True):
             st.session_state.page = "ACCEUIL"
             st.rerun()
-            #  VERIF USER ADM (ACCÈS AU PROFIL) ---
+
+# --- 10. PAGE : VERIF USER ADM (ACCÈS AU PROFIL) ---
 elif st.session_state.page == "VERIF_USER_ADM":
     with st.container(border=True):
         st.subheader("Authentification Profil Utilisateur")
@@ -497,9 +530,24 @@ elif st.session_state.page == "VERIF_USER_ADM":
         
         if st.button("ACCÉDER AU PROFIL", use_container_width=True):
             user_key = f"user_profile_{u_name}"
+            user_found = False
+            user_data = None
+
+            # Vérification Replit DB
             if user_key in db:
-                if db[user_key].get("pw_user_adm") == u_pass_adm:
-                    st.session_state.temp_user = u_name # On stocke l'utilisateur à modifier
+                user_data = db[user_key]
+                user_found = True
+            # Vérification CSV
+            elif os.path.exists(FILE_CLIENTS):
+                df_c = pd.read_csv(FILE_CLIENTS)
+                match = df_c[df_c['name'] == u_name]
+                if not match.empty:
+                    user_data = match.iloc[0].to_dict()
+                    user_found = True
+
+            if user_found:
+                if str(user_data.get("pw_user_adm")) == str(u_pass_adm):
+                    st.session_state.temp_user = u_name
                     st.session_state.page = "EDIT_PROFILE"
                     st.rerun()
                 else:
@@ -510,49 +558,6 @@ elif st.session_state.page == "VERIF_USER_ADM":
         if st.button("⬅️ RETOUR"):
             st.session_state.page = "ACCEUIL"
             st.rerun()
-
-# --- 10. PAGE : EDIT PROFILE (MODIFICATION) ---
-elif st.session_state.page == "EDIT_PROFILE":
-    u_name = st.session_state.get("temp_user")
-    user_data = db[f"user_profile_{u_name}"]
-    
-    with st.container(border=True):
-        st.header(f"Profil de : {u_name}")
-        
-        # Mode lecture par défaut, déverrouillé si besoin
-        if "edit_mode" not in st.session_state:
-            st.session_state.edit_mode = False
-
-        # Affichage des champs
-        new_p1 = st.text_input("PASSWORD (OPEN APP / MODIFY)", value=user_data["pw_open_modify"], type="password" if not st.session_state.edit_mode else "default", disabled=not st.session_state.edit_mode)
-        new_p2 = st.text_input("PASSWORD (ADM / PRINT / PROGRESS)", value=user_data["pw_adm_print_prog"], type="password" if not st.session_state.edit_mode else "default", disabled=not st.session_state.edit_mode)
-        new_p3 = st.text_input("PASSWORD (USER ADM)", value=user_data["pw_user_adm"], type="password" if not st.session_state.edit_mode else "default", disabled=not st.session_state.edit_mode)
-
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if not st.session_state.edit_mode:
-                if st.button("🔓 MODIFIER VOS PASSWORDS", use_container_width=True):
-                    st.session_state.edit_mode = True
-                    st.rerun()
-            else:
-                if st.button("💾 SAVE MODIFICATIONS", use_container_width=True, type="primary"):
-                    # Vérification si changement
-                    if (new_p1 == user_data["pw_open_modify"] and 
-                        new_p2 == user_data["pw_adm_print_prog"] and 
-                        new_p3 == user_data["pw_user_adm"]):
-                        st.info("Aucune modification n'a été faite.")
-                    else:
-                        sauvegarder_utilisateur_db(u_name, new_p1, new_p2, new_p3, user_data.get("status", "Active"))
-                        st.success("Modifications enregistrées !")
-                        st.session_state.edit_mode = False
-                        st.rerun()
-
-        with col2:
-            if st.button("⬅️ QUITTER / RETOUR", use_container_width=True):
-                st.session_state.edit_mode = False
-                st.session_state.page = "ACCEUIL"
-                st.rerun()
 # --- 10. PAGE : MAIN APP (APPLICATION PRINCIPALE) ---
 elif st.session_state.page == "MAIN_APP":
     # 1. Chargement des données AU DÉBUT du bloc
