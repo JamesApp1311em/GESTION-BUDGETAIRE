@@ -105,7 +105,6 @@ hide_st_style = f"""
     </style>
 """
 st.markdown(hide_st_style, unsafe_allow_html=True)
-
 # --- 4. INITIALISATION DES BASES DE DONNÉES ---
 FILE_CLIENTS = "clients.csv"
 FILE_DATA = "historique_complet.csv"
