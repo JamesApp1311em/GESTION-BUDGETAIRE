@@ -5,40 +5,46 @@ import time
 from fpdf import FPDF
 import datetime
 
-# --- GESTION INTELLIGENTE DE LA BASE DE DONNÉES ---
+# --- 1. DÉFINITION DES CONSTANTES (INDISPENSABLE ICI POUR ÉVITER LE NAMEERROR) ---
+FILE_CLIENTS = "clients.csv"
+FILE_DATA = "historique_complet.csv"
+
+# --- 2. GESTION INTELLIGENTE DE LA BASE DE DONNÉES ---
+class FakeDB(dict):
+    """Simule Replit DB sur Streamlit Cloud avec la fonction .prefix()"""
+    def prefix(self, p):
+        return [k for k in self.keys() if k.startswith(p)]
+
 try:
     from replit import db
     use_replit_db = True
-except ImportError:
-    # Si on est sur téléphone/Cloud, on simule l'objet Replit DB
-    class FakeDB(dict):
-        def __init__(self):
-            super().__init__()
-            # AJOUT : On charge les données du CSV dans la mémoire au démarrage
-            if os.path.exists(FILE_CLIENTS):
-                try:
-                    import pandas as pd
-                    df_init = pd.read_csv(FILE_CLIENTS)
-                    for _, row in df_init.iterrows():
-                        self[f"user_profile_{row['name']}"] = {
-                            "pw_open_modify": str(row["pw_open_modify"]),
-                            "pw_adm_print_prog": str(row["pw_adm_print_prog"]),
-                            "pw_user_adm": str(row["pw_user_adm"]),
-                            "status": str(row["status"])
-                        }
-                except:
-                    pass
-
-        def prefix(self, p):
-            return [k for k in self.keys() if k.startswith(p)]
-    
+except (ImportError, ModuleNotFoundError):
+    # Initialisation de la base factice
     db = FakeDB()
     use_replit_db = False
-# --- 1. CONFIGURATION DE LA PAGE (DOIT ÊTRE EN PREMIER) ---
+
+    # Chargement initial depuis le CSV pour éviter les mots de passe "None"
+    if os.path.exists(FILE_CLIENTS):
+        try:
+            df_init = pd.read_csv(FILE_CLIENTS)
+            for _, row in df_init.iterrows():
+                # On remplit la DB interne avec les infos du fichier
+                db[f"user_profile_{row['name']}"] = {
+                    "pw_open_modify": str(row["pw_open_modify"]),
+                    "pw_adm_print_prog": str(row["pw_adm_print_prog"]),
+                    "pw_user_adm": str(row["pw_user_adm"]),
+                    "status": str(row["status"])
+                }
+        except Exception:
+            pass
+
+# --- 1. CONFIGURATION DE LA PAGE ---
+# Garde bien ceci juste APRÈS les imports et la définition de FakeDB
 st.set_page_config(
     page_title="Gestionnaire de Dépenses",
+    page_icon="💰", 
     layout="centered",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded"
 )
 
 # --- 2. INITIALISATION DU SESSION STATE ---
