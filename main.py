@@ -129,39 +129,70 @@ init_db()
 
 
 def sauvegarder_utilisateur_db(username, pw_open, pw_adm, pw_user_adm, status="Active"):
-    """Enregistre ou met à jour un profil utilisateur dans Replit DB"""
+    """Enregistre ou met à jour un profil utilisateur dans Replit DB et CSV"""
+    # 1. Sauvegarde dans Replit DB
     db[f"user_profile_{username}"] = {
         "pw_open_modify": pw_open,
         "pw_adm_print_prog": pw_adm,
         "pw_user_adm": pw_user_adm,
         "status": status,
     }
+    
+    # 2. Sauvegarde miroir dans le CSV (pour accès téléphone)
+    new_user = pd.DataFrame([[username, pw_open, pw_adm, pw_user_adm, status]], 
+                            columns=["name", "pw_open_modify", "pw_adm_print_prog", "pw_user_adm", "status"])
+    new_user.to_csv(FILE_CLIENTS, mode='a', header=False, index=False)
 
 
 def sauvegarder_data_db(username, mois, annee, revenu, depenses_dict, total, epargne):
-    """Enregistre une entrée budgétaire dans Replit DB"""
+    """Enregistre une entrée budgétaire dans Replit DB et CSV"""
+    date_now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     key = f"data_{username}_{mois}_{annee}"
+    
+    # 1. Sauvegarde dans Replit DB
     db[key] = {
         "Utilisateur": username,
         "Mois": mois,
         "Annee": annee,
         "Revenu": revenu,
-        "Depenses": depenses_dict,  # On stocke le dictionnaire complet
+        "Depenses": depenses_dict,
         "Total_Depenses": total,
         "Epargne": epargne,
-        "Date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "Date": date_now,
     }
+    
+    # 2. Sauvegarde miroir dans le CSV (pour historique téléphone)
+    new_data = pd.DataFrame([[
+        username, mois, annee, revenu, 
+        depenses_dict.get("Loyer", 0), depenses_dict.get("Scolarite", 0),
+        depenses_dict.get("Ration", 0), depenses_dict.get("Dette", 0),
+        depenses_dict.get("Poche", 0), depenses_dict.get("Assistance", 0),
+        depenses_dict.get("Autres", 0), total, epargne, date_now
+    ]], columns=[
+        "Utilisateur", "Mois", "Annee", "Revenu", "Loyer", "Scolarite", 
+        "Ration", "Dette", "Poche", "Assistance", "Autres", 
+        "Total_Depenses", "Epargne", "Date_Enregistrement"
+    ])
+    new_data.to_csv(FILE_DATA, mode='a', header=False, index=False)
 
 
 def recuperer_historique_db(username):
-    """Récupère toutes les données d'un utilisateur depuis Replit DB"""
+    """Récupère toutes les données d'un utilisateur depuis Replit DB ou CSV"""
     historique = []
-    # On cherche toutes les clés qui commencent par 'data_NomUtilisateur'
-    for key in db.prefix(f"data_{username}"):
-        historique.append(db[key])
-    return pd.DataFrame(historique)
-
-
+    
+    # Priorité à Replit DB si disponible et non vide
+    keys = db.prefix(f"data_{username}")
+    if keys:
+        for key in keys:
+            historique.append(db[key])
+        return pd.DataFrame(historique)
+    
+    # Sinon (cas du téléphone), lecture depuis le CSV
+    elif os.path.exists(FILE_DATA):
+        df_all = pd.read_csv(FILE_DATA)
+        return df_all[df_all["Utilisateur"] == username]
+    
+    return pd.DataFrame()
 # --- 5. FONCTIONS TECHNIQUES ---
 
 
@@ -257,7 +288,7 @@ def create_pdf(row):
 
 
 # --- LOGIQUE DES PAGES (A SUIVRE...) ---
-# --- 4. LOGIQUE DE FERMETURE (QUITTER L'APP) ---
+# --- . LOGIQUE DE FERMETURE (QUITTER L'APP) ---
 if st.session_state.confirm_exit:
     with st.container(border=True):
         st.warning("⚠️ Êtes-vous sûr de vouloir fermer l'application ?")
@@ -268,7 +299,7 @@ if st.session_state.confirm_exit:
             st.session_state.confirm_exit = False
             st.rerun()
 
-# --- 5. PAGE : ACCEUIL ---
+# --- 6. PAGE : ACCEUIL ---
 elif st.session_state.page == "ACCEUIL":
     with st.container(border=True):
         st.markdown(
@@ -317,7 +348,7 @@ elif st.session_state.page == "ACCEUIL":
         # Le bouton "QUITTER L'APP" a été supprimé ici.
         st.write("---")
 
-# --- 6. PAGE : LOGIN (CRÉATION DE COMPTE) ---
+# --- 7. PAGE : LOGIN (CRÉATION DE COMPTE) ---
 elif st.session_state.page == "LOGIN":
     with st.container(border=True):
         st.markdown(
@@ -351,7 +382,7 @@ elif st.session_state.page == "LOGIN":
             st.session_state.page = "ACCEUIL"
             st.rerun()
 
-# --- 7. PAGE : VERIF ADMIN ---
+# --- 8. PAGE : VERIF ADMIN ---
 elif st.session_state.page == "VERIF_ADM":
     with st.container(border=True):
         st.subheader("Authentification Administrateur Système")
@@ -366,7 +397,7 @@ elif st.session_state.page == "VERIF_ADM":
             st.session_state.page = "ACCEUIL"
             st.rerun()
 
-# --- 8. PAGE : APP ADM (ADMINISTRATION) ---
+# --- 9. PAGE : APP ADM (ADMINISTRATION) ---
 elif st.session_state.page == "APP_ADM":
     with st.container(border=True):
         st.markdown(
@@ -507,7 +538,7 @@ elif st.session_state.page == "EDIT_PROFILE":
                 st.session_state.edit_mode = False
                 st.session_state.page = "ACCEUIL"
                 st.rerun()
-# --- 9. PAGE : MAIN APP (APPLICATION PRINCIPALE) ---
+# --- 10. PAGE : MAIN APP (APPLICATION PRINCIPALE) ---
 elif st.session_state.page == "MAIN_APP":
     # 1. Chargement des données AU DÉBUT du bloc
     df_h = pd.read_csv(FILE_DATA)
@@ -815,7 +846,7 @@ elif st.session_state.page == "MAIN_APP":
                     st.session_state.page = "RESULTATS"
                     st.rerun()
 
-# --- 10. PAGE : RÉSULTATS ---
+# --- 11. PAGE : RÉSULTATS ---
 elif st.session_state.page == "RESULTATS":
     with st.container(border=True):
         nom_mois_base = st.session_state.get("sel_mois_base", "MOIS")
@@ -953,7 +984,7 @@ elif st.session_state.page == "RESULTATS":
         if st.button("⬅️ RETOUR"):
             st.session_state.page = "MAIN_APP"
             st.rerun()
-# --- 11. PAGE : VIEW BASE (ACCÈS COMPLET AUX DONNÉES) ---
+# --- 12. PAGE : VIEW BASE (ACCÈS COMPLET AUX DONNÉES) ---
 elif st.session_state.page == "VIEW_BASE":
     with st.container(border=True):
         st.title("🔓 GESTION DE L'HISTORIQUE")
@@ -985,7 +1016,7 @@ elif st.session_state.page == "VIEW_BASE":
             st.session_state.page = "MAIN_APP"
             st.rerun()
 
-# --- 12. PAGE : PROGRESSION (TRI PRÉCIS DATE + HEURE) ---
+# --- 13. PAGE : PROGRESSION (TRI PRÉCIS DATE + HEURE) ---
 elif st.session_state.page == "PROGRESS":
     import time
 
@@ -1288,7 +1319,7 @@ elif st.session_state.page == "PROGRESS":
                         st.info("Aucun retrait effectué.")
             else:
                 st.warning("Données insuffisantes.")
-# --- 13. PAGE : VERIF USER ADM ---
+# --- 14. PAGE : VERIF USER ADM ---
 elif st.session_state.page == "VERIF_USER_ADM":
     with st.container(border=True):
         st.subheader("Accès Modification Profil")
@@ -1308,7 +1339,7 @@ elif st.session_state.page == "VERIF_USER_ADM":
             st.session_state.page = "ACCEUIL"
             st.rerun()
 
-# --- 14. PAGE : EDIT PROFIL ---
+# --- 15. PAGE : EDIT PROFIL ---
 elif st.session_state.page == "EDIT_PROFIL":
     with st.container(border=True):
         st.title("✏️ MODIFICATION DES CODES")
