@@ -5,23 +5,36 @@ import time
 from fpdf import FPDF
 import datetime
 
-# --- GESTION INTELLIGENTE DE LA BASE DE DONNÉES ---
+# --- GESTION INTELLIGENTE ET PERSISTANTE DE LA BASE DE DONNÉES ---
 try:
     from replit import db
     use_replit_db = True
 except ImportError:
-    # Si on est sur téléphone/Cloud, on simule l'objet Replit DB
-    # pour que les fonctions comme .prefix() ne fassent pas planter l'app
+    # On crée un FakeDB qui se remplit automatiquement avec ton fichier CSV
     class FakeDB(dict):
+        def __init__(self):
+            super().__init__()
+            # On charge les clients existants dans le dictionnaire au démarrage
+            if os.path.exists("clients.csv"):
+                try:
+                    import pandas as pd
+                    df = pd.read_csv("clients.csv")
+                    for _, row in df.iterrows():
+                        # On recrée la clé 'user_profile_NOM'
+                        self[f"user_profile_{row['name']}"] = {
+                            "pw_open_modify": str(row["pw_open_modify"]),
+                            "pw_adm_print_prog": str(row["pw_adm_print_prog"]),
+                            "pw_user_adm": str(row["pw_user_adm"]),
+                            "status": str(row["status"])
+                        }
+                except:
+                    pass
+
         def prefix(self, p):
-            # Simule la recherche de clés commençant par le préfixe p
             return [k for k in self.keys() if k.startswith(p)]
     
     db = FakeDB()
     use_replit_db = False
-    # Petit message d'alerte discret (optionnel)
-    # st.sidebar.warning("⚠️ Mode local : Données Replit non synchronisées.")
-
 # --- 1. CONFIGURATION DE LA PAGE (DOIT ÊTRE EN PREMIER) ---
 st.set_page_config(
     page_title="Gestionnaire de Dépenses",
@@ -415,106 +428,78 @@ elif st.session_state.page == "VERIF_ADM":
 # --- 9. PAGE : APP ADM (ADMINISTRATION) ---
 elif st.session_state.page == "APP_ADM":
     with st.container(border=True):
-        st.markdown(
-            "<h2 style='text-align: center;'>🖥️ ADMINISTRATION GÉNÉRALE</h2>",
-            unsafe_allow_html=True,
-        )
+        st.markdown("<h2 style='text-align: center;'>🖥️ ADMINISTRATION GÉNÉRALE</h2>", unsafe_allow_html=True)
         st.write("Gestion des comptes utilisateurs et accès système.")
 
         # --- LIGNE DE BOUTONS ---
         col_ext, col_dev = st.columns(2)
-
         with col_ext:
             if st.button("📂 EXTEND", use_container_width=True):
                 st.session_state.show_extend_table = not st.session_state.get("show_extend_table", False)
-
         with col_dev:
             label_dev = "🔒 CACHER MENUS" if st.session_state.get("dev_mode") else "🔓 OPTIONS DEV"
             if st.button(label_dev, use_container_width=True):
                 st.session_state.dev_mode = not st.session_state.get("dev_mode", False)
                 st.rerun()
 
-        # --- RÉCUPÉRATION DES DONNÉES (REPLIT + CSV) ---
+        # --- RÉCUPÉRATION UNIQUE DEPUIS LE CSV (Plus fiable sur Cloud) ---
         all_users = []
-        
-        # 1. On cherche d'abord dans Replit DB
-        keys = db.prefix("user_profile_")
-        for key in keys:
-            user_data = db[key]
-            username = key.replace("user_profile_", "")
-            all_users.append({
-                "name": username,
-                "status": user_data.get("status", "Active"),
-                "pw_open": user_data.get("pw_open_modify"),
-                "pw_adm": user_data.get("pw_adm_print_prog"),
-                "pw_user_adm": user_data.get("pw_user_adm")
-            })
-        
-        # 2. Si la liste est vide (cas Streamlit Cloud), on charge depuis le CSV
-        if not all_users and os.path.exists(FILE_CLIENTS):
+        if os.path.exists(FILE_CLIENTS):
             df_csv = pd.read_csv(FILE_CLIENTS)
-            if not df_csv.empty:
-                for _, row_csv in df_csv.iterrows():
-                    all_users.append({
-                        "name": row_csv["name"],
-                        "status": row_csv["status"],
-                        "pw_open": row_csv["pw_open_modify"],
-                        "pw_adm": row_csv["pw_adm_print_prog"],
-                        "pw_user_adm": row_csv["pw_user_adm"]
-                    })
+            for _, row_csv in df_csv.iterrows():
+                # On s'assure que les valeurs ne sont pas 'None' ou vides
+                all_users.append({
+                    "name": str(row_csv["name"]),
+                    "status": str(row_csv.get("status", "Active")),
+                    "pw_open": str(row_csv.get("pw_open_modify", "Non défini")),
+                    "pw_adm": str(row_csv.get("pw_adm_print_prog", "Non défini")),
+                    "pw_user_adm": str(row_csv.get("pw_user_adm", "Non défini"))
+                })
         
         df_adm = pd.DataFrame(all_users)
 
         # Affichage de la table EXTEND
         if st.session_state.get("show_extend_table") and not df_adm.empty:
-            st.write("### Base de données complète des utilisateurs")
+            st.write("### Base de données complète")
             st.dataframe(df_adm, use_container_width=True)
             st.write("---")
 
         st.subheader("Liste des comptes et Status")
         
         if df_adm.empty:
-            st.warning("Aucun utilisateur trouvé dans la base de données (CSV ou Replit).")
+            st.warning("Aucun utilisateur trouvé.")
         else:
             for idx, row in df_adm.iterrows():
                 with st.container(border=True):
                     c1, c2, c3 = st.columns([2, 1, 1])
                     c1.write(f"👤 **{row['name']}**")
 
-                    is_active = str(row["status"]).lower() in ["active", "true"]
+                    is_active = str(row["status"]).strip().lower() == "active"
                     status_label = "ACTIVE" if is_active else "BLOCKED"
 
-                    # Checkbox de statut (Mise à jour DB + CSV)
-                    if c2.checkbox(f"Statut: {status_label}", value=is_active, key=f"chk_{row['name']}"):
-                        if not is_active: # On active
-                            new_status = "Active"
-                            if f"user_profile_{row['name']}" in db:
-                                db[f"user_profile_{row['name']}"]["status"] = new_status
-                            # Mise à jour CSV
-                            df_upd = pd.read_csv(FILE_CLIENTS)
-                            df_upd.loc[df_upd['name'] == row['name'], 'status'] = new_status
-                            df_upd.to_csv(FILE_CLIENTS, index=False)
-                            st.rerun()
-                    else:
-                        if is_active: # On bloque
-                            new_status = "Blocked"
-                            if f"user_profile_{row['name']}" in db:
-                                db[f"user_profile_{row['name']}"]["status"] = new_status
-                            # Mise à jour CSV
-                            df_upd = pd.read_csv(FILE_CLIENTS)
-                            df_upd.loc[df_upd['name'] == row['name'], 'status'] = new_status
-                            df_upd.to_csv(FILE_CLIENTS, index=False)
-                            st.rerun()
+                    # Toggle Statut
+                    if c2.button(f"{status_label}", key=f"btn_stat_{row['name']}", use_container_width=True):
+                        new_status = "Blocked" if is_active else "Active"
+                        
+                        # Mise à jour CSV
+                        df_upd = pd.read_csv(FILE_CLIENTS)
+                        df_upd.loc[df_upd['name'] == row['name'], 'status'] = new_status
+                        df_upd.to_csv(FILE_CLIENTS, index=False)
+                        
+                        # Mise à jour DB (si Replit)
+                        if use_replit_db:
+                            db[f"user_profile_{row['name']}"]["status"] = new_status
+                        
+                        st.success(f"{row['name']} est maintenant {new_status}")
+                        st.rerun()
 
-                    # Bouton supprimer (Supprime de DB + CSV)
-                    if c3.button("🗑️", key=f"btn_del_{row['name']}"):
-                        # Supprimer de Replit DB
-                        if f"user_profile_{row['name']}" in db:
-                            del db[f"user_profile_{row['name']}"]
-                        # Supprimer du CSV
+                    # Bouton supprimer
+                    if c3.button("🗑️", key=f"btn_del_{row['name']}", use_container_width=True):
                         df_upd = pd.read_csv(FILE_CLIENTS)
                         df_upd = df_upd[df_upd['name'] != row['name']]
                         df_upd.to_csv(FILE_CLIENTS, index=False)
+                        if use_replit_db and f"user_profile_{row['name']}" in db:
+                            del db[f"user_profile_{row['name']}"]
                         st.rerun()
 
         if st.button("⬅️ QUITTER L'ADMINISTRATION", use_container_width=True):
