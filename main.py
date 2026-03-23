@@ -309,13 +309,29 @@ elif st.session_state.page == "ACCEUIL":
         u_p = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password")
 
         if st.button("🚀 OPEN APP", use_container_width=True):
-            # ON CHERCHE DANS LA DB AU LIEU DU CSV
             user_key = f"user_profile_{u_n}"
+            user_data = None
+            user_found = False
 
+            # 1. ON CHERCHE D'ABORD DANS LA DB (Replit)
             if user_key in db:
                 user_data = db[user_key]
-                if user_data["pw_open_modify"] == str(u_p).strip():
-                    if user_data["status"].lower() in ["true", "active"]:
+                user_found = True
+            
+            # 2. SINON ON CHERCHE DANS LE CSV (Pour le téléphone)
+            elif os.path.exists(FILE_CLIENTS):
+                df_c = pd.read_csv(FILE_CLIENTS)
+                match = df_c[df_c['name'] == u_n]
+                if not match.empty:
+                    user_data = match.iloc[0].to_dict()
+                    user_found = True
+
+            # --- LOGIQUE DE VÉRIFICATION ---
+            if user_found:
+                # Vérification du mot de passe
+                if str(user_data["pw_open_modify"]) == str(u_p).strip():
+                    # Vérification du statut
+                    if str(user_data["status"]).lower() in ["true", "active"]:
                         st.session_state.update(
                             {
                                 "current_user": u_n,
@@ -345,7 +361,6 @@ elif st.session_state.page == "ACCEUIL":
             st.session_state.page = "VERIF_USER_ADM"
             st.rerun()
 
-        # Le bouton "QUITTER L'APP" a été supprimé ici.
         st.write("---")
 
 # --- 7. PAGE : LOGIN (CRÉATION DE COMPTE) ---

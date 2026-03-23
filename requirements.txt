@@ -1,6 +1,6 @@
 streamlit
 pandas
-fpdf2
 fpdf
+altair
 plotly
 matplotlib
