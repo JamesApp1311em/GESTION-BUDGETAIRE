@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import time
-# import plotly.graph_objects as go  # 🟢 AJOUTÉ : Pour les graphiques avec échelle fixe
+import plotly.graph_objects as go  # 🟢 AJOUTÉ : Pour les graphiques avec échelle fixe
 from fpdf import FPDF
 import datetime
 
@@ -80,6 +80,7 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 FILE_CLIENTS = "clients.csv"
 FILE_DATA = "historique_complet.csv"
 
+
 def init_db():
     if not os.path.exists(FILE_CLIENTS) or os.stat(FILE_CLIENTS).st_size == 0:
         columns_clients = [
@@ -110,9 +111,11 @@ def init_db():
         ]
         pd.DataFrame(columns=columns_data).to_csv(FILE_DATA, index=False)
 
+
 init_db()
 
 # --- 5. FONCTIONS TECHNIQUES ---
+
 
 def create_pdf(row):
     """Génère le bulletin de paie au format PDF"""
@@ -183,12 +186,12 @@ def create_pdf(row):
     obs = "GOOD" if float(row["Epargne"]) > 0 else "BAD"
     pdf.ln(5)
     pdf.cell(45, 10, "OBSERVATION", 1, 0, "L", True)
-    
+
     if obs == "GOOD":
-        pdf.set_fill_color(144, 238, 144) # Vert
+        pdf.set_fill_color(144, 238, 144)  # Vert
     else:
-        pdf.set_fill_color(255, 99, 71) # Rouge
-    
+        pdf.set_fill_color(255, 99, 71)  # Rouge
+
     pdf.cell(145, 10, obs, 1, 1, "C", True)
 
     # Pied de page
@@ -204,9 +207,9 @@ def create_pdf(row):
     )
 
     # --- CORRECTION DE L'ALIGNEMENT DES LIGNES CI-DESSOUS ---
-    pdf_output = pdf.output(dest='S')
+    pdf_output = pdf.output(dest="S")
     if isinstance(pdf_output, str):
-        return pdf_output.encode('latin-1')
+        return pdf_output.encode("latin-1")
     return bytes(pdf_output)
 
 
@@ -436,8 +439,18 @@ elif st.session_state.page == "MAIN_APP":
             if st.session_state.get("show_date_picker"):
                 with st.container(border=True):
                     m_list = [
-                        "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-                        "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+                        "Janvier",
+                        "Février",
+                        "Mars",
+                        "Avril",
+                        "Mai",
+                        "Juin",
+                        "Juillet",
+                        "Août",
+                        "Septembre",
+                        "Octobre",
+                        "Novembre",
+                        "Décembre",
                     ]
                     m_c = st.selectbox("Mois", m_list)
                     a_c = st.selectbox("Année", [str(a) for a in range(2024, 2100)])
@@ -487,8 +500,14 @@ elif st.session_state.page == "MAIN_APP":
                                 {"sel_mois_affiche": m_c, "inputs_locked": False}
                             )
                             for k in [
-                                "n_rev", "n_loy", "n_sco", "n_rat",
-                                "n_det", "n_poc", "n_ast", "n_aut"
+                                "n_rev",
+                                "n_loy",
+                                "n_sco",
+                                "n_rat",
+                                "n_det",
+                                "n_poc",
+                                "n_ast",
+                                "n_aut",
                             ]:
                                 st.session_state[k] = 0
                         st.rerun()
@@ -578,9 +597,13 @@ elif st.session_state.page == "MAIN_APP":
             if sel_m_base and L:
                 versions_du_mois = user_recs[
                     (user_recs["Mois"].str.startswith(sel_m_base))
-                    & (user_recs["Annee"].astype(str) == st.session_state.get("sel_annee"))
+                    & (
+                        user_recs["Annee"].astype(str)
+                        == st.session_state.get("sel_annee")
+                    )
                 ]
                 if not versions_du_mois.empty:
+
                     def ext_v(n):
                         return int(n.split("Mod")[-1]) if "Mod" in n else 0
 
@@ -588,7 +611,9 @@ elif st.session_state.page == "MAIN_APP":
                     cur_v = ext_v(st.session_state.get("sel_mois_affiche", ""))
 
                     if cur_v == max_v:
-                        if st.button("📝 MODIFIER LA DERNIÈRE VERSION", use_container_width=True):
+                        if st.button(
+                            "📝 MODIFIER LA DERNIÈRE VERSION", use_container_width=True
+                        ):
                             st.session_state.ask_lock_pwd = True
 
                         if st.session_state.get("ask_lock_pwd"):
@@ -597,7 +622,9 @@ elif st.session_state.page == "MAIN_APP":
                                     "Entrez le PASSWORD (MODIFY)", type="password"
                                 )
                                 if st.button("🔓 DÉVERROUILLER"):
-                                    if pwd_bulletin == st.session_state.get("user_pw_open"):
+                                    if pwd_bulletin == st.session_state.get(
+                                        "user_pw_open"
+                                    ):
                                         st.session_state.inputs_locked = False
                                         st.session_state.ask_lock_pwd = False
                                         st.success("Accès autorisé")
@@ -613,30 +640,62 @@ elif st.session_state.page == "MAIN_APP":
 
             # --- AFFICHAGE DES CHAMPS ---
             col_m, col_a = st.columns(2)
-            col_m.text_input("MOIS EN COURS", value=st.session_state.get("sel_mois_affiche", ""), disabled=True)
-            col_a.text_input("ANNÉE", value=st.session_state.get("sel_annee", ""), disabled=True)
+            col_m.text_input(
+                "MOIS EN COURS",
+                value=st.session_state.get("sel_mois_affiche", ""),
+                disabled=True,
+            )
+            col_a.text_input(
+                "ANNÉE", value=st.session_state.get("sel_annee", ""), disabled=True
+            )
 
-            st.session_state.n_rev = st.number_input("REVENU GLOBAL ($)", value=int(st.session_state.get("n_rev", 0)), disabled=L)
+            st.session_state.n_rev = st.number_input(
+                "REVENU GLOBAL ($)",
+                value=int(st.session_state.get("n_rev", 0)),
+                disabled=L,
+            )
 
             c1, c2 = st.columns(2)
-            st.session_state.n_loy = c1.number_input("LOYER", value=int(st.session_state.get("n_loy", 0)), disabled=L)
-            st.session_state.n_sco = c1.number_input("SCOLARITÉ", value=int(st.session_state.get("n_sco", 0)), disabled=L)
-            st.session_state.n_rat = c1.number_input("RATION", value=int(st.session_state.get("n_rat", 0)), disabled=L)
-            st.session_state.n_det = c2.number_input("DETTES", value=int(st.session_state.get("n_det", 0)), disabled=L)
-            st.session_state.n_poc = c2.number_input("POCHE", value=int(st.session_state.get("n_poc", 0)), disabled=L)
-            st.session_state.n_ast = c2.number_input("ASSISTANCE", value=int(st.session_state.get("n_ast", 0)), disabled=L)
-            st.session_state.n_aut = st.number_input("AUTRES", value=int(st.session_state.get("n_aut", 0)), disabled=L)
+            st.session_state.n_loy = c1.number_input(
+                "LOYER", value=int(st.session_state.get("n_loy", 0)), disabled=L
+            )
+            st.session_state.n_sco = c1.number_input(
+                "SCOLARITÉ", value=int(st.session_state.get("n_sco", 0)), disabled=L
+            )
+            st.session_state.n_rat = c1.number_input(
+                "RATION", value=int(st.session_state.get("n_rat", 0)), disabled=L
+            )
+            st.session_state.n_det = c2.number_input(
+                "DETTES", value=int(st.session_state.get("n_det", 0)), disabled=L
+            )
+            st.session_state.n_poc = c2.number_input(
+                "POCHE", value=int(st.session_state.get("n_poc", 0)), disabled=L
+            )
+            st.session_state.n_ast = c2.number_input(
+                "ASSISTANCE", value=int(st.session_state.get("n_ast", 0)), disabled=L
+            )
+            st.session_state.n_aut = st.number_input(
+                "AUTRES", value=int(st.session_state.get("n_aut", 0)), disabled=L
+            )
 
             if st.button("🚀 CALCULER", use_container_width=True, type="primary"):
                 if not st.session_state.get("sel_mois_base"):
                     st.warning("Sélectionnez d'abord un mois dans le MENU.")
                 else:
-                    st.session_state.total_dep = sum([
-                        st.session_state.n_loy, st.session_state.n_sco, st.session_state.n_rat,
-                        st.session_state.n_det, st.session_state.n_poc, st.session_state.n_ast,
-                        st.session_state.n_aut
-                    ])
-                    st.session_state.epargne = st.session_state.n_rev - st.session_state.total_dep
+                    st.session_state.total_dep = sum(
+                        [
+                            st.session_state.n_loy,
+                            st.session_state.n_sco,
+                            st.session_state.n_rat,
+                            st.session_state.n_det,
+                            st.session_state.n_poc,
+                            st.session_state.n_ast,
+                            st.session_state.n_aut,
+                        ]
+                    )
+                    st.session_state.epargne = (
+                        st.session_state.n_rev - st.session_state.total_dep
+                    )
                     st.session_state.page = "RESULTATS"
                     st.rerun()
 
@@ -646,7 +705,10 @@ elif st.session_state.page == "RESULTATS":
         nom_mois_base = st.session_state.get("sel_mois_base", "MOIS")
         annee_sel = str(st.session_state.get("sel_annee", "2024"))
 
-        st.markdown(f"<h2 style='text-align: center;'>📊 BILAN : {nom_mois_base} {annee_sel}</h2>", unsafe_allow_html=True)
+        st.markdown(
+            f"<h2 style='text-align: center;'>📊 BILAN : {nom_mois_base} {annee_sel}</h2>",
+            unsafe_allow_html=True,
+        )
 
         rev_val = float(st.session_state.get("n_rev", 0))
         rev_pour_calcul = rev_val if rev_val > 0 else 1
@@ -654,7 +716,11 @@ elif st.session_state.page == "RESULTATS":
 
         col_res1, col_res2 = st.columns(2)
         col_res1.metric("TOTAL DÉPENSES", f"{st.session_state.get('total_dep', 0)} $")
-        col_res2.metric("ÉPARGNE NETTE", f"{st.session_state.get('epargne', 0)} $", delta=f"{ratio_epargne:.1f}%")
+        col_res2.metric(
+            "ÉPARGNE NETTE",
+            f"{st.session_state.get('epargne', 0)} $",
+            delta=f"{ratio_epargne:.1f}%",
+        )
 
         if st.session_state.get("epargne", 0) >= 0:
             st.success(f"Félicitations ! Épargne de {ratio_epargne:.1f}% du revenu.")
@@ -663,11 +729,24 @@ elif st.session_state.page == "RESULTATS":
 
         if st.button("💾 SAUVEGARDER CETTE VERSION", use_container_width=True):
             if not os.path.exists(FILE_DATA):
-                pd.DataFrame(columns=[
-                    "Utilisateur", "Mois", "Annee", "Revenu", "Loyer", "Scolarite",
-                    "Ration", "Dette", "Poche", "Assistance", "Autres",
-                    "Total_Depenses", "Epargne", "Date_Enregistrement"
-                ]).to_csv(FILE_DATA, index=False)
+                pd.DataFrame(
+                    columns=[
+                        "Utilisateur",
+                        "Mois",
+                        "Annee",
+                        "Revenu",
+                        "Loyer",
+                        "Scolarite",
+                        "Ration",
+                        "Dette",
+                        "Poche",
+                        "Assistance",
+                        "Autres",
+                        "Total_Depenses",
+                        "Epargne",
+                        "Date_Enregistrement",
+                    ]
+                ).to_csv(FILE_DATA, index=False)
 
             df_hist = pd.read_csv(FILE_DATA)
             current_user = st.session_state.current_user
@@ -675,14 +754,38 @@ elif st.session_state.page == "RESULTATS":
             doublon_exact = df_hist[
                 (df_hist["Utilisateur"] == current_user)
                 & (df_hist["Annee"].astype(str) == annee_sel)
-                & (df_hist["Revenu"].astype(float) == float(st.session_state.get("n_rev", 0)))
-                & (df_hist["Loyer"].astype(float) == float(st.session_state.get("n_loy", 0)))
-                & (df_hist["Scolarite"].astype(float) == float(st.session_state.get("n_sco", 0)))
-                & (df_hist["Ration"].astype(float) == float(st.session_state.get("n_rat", 0)))
-                & (df_hist["Dette"].astype(float) == float(st.session_state.get("n_det", 0)))
-                & (df_hist["Poche"].astype(float) == float(st.session_state.get("n_poc", 0)))
-                & (df_hist["Assistance"].astype(float) == float(st.session_state.get("n_ast", 0)))
-                & (df_hist["Autres"].astype(float) == float(st.session_state.get("n_aut", 0)))
+                & (
+                    df_hist["Revenu"].astype(float)
+                    == float(st.session_state.get("n_rev", 0))
+                )
+                & (
+                    df_hist["Loyer"].astype(float)
+                    == float(st.session_state.get("n_loy", 0))
+                )
+                & (
+                    df_hist["Scolarite"].astype(float)
+                    == float(st.session_state.get("n_sco", 0))
+                )
+                & (
+                    df_hist["Ration"].astype(float)
+                    == float(st.session_state.get("n_rat", 0))
+                )
+                & (
+                    df_hist["Dette"].astype(float)
+                    == float(st.session_state.get("n_det", 0))
+                )
+                & (
+                    df_hist["Poche"].astype(float)
+                    == float(st.session_state.get("n_poc", 0))
+                )
+                & (
+                    df_hist["Assistance"].astype(float)
+                    == float(st.session_state.get("n_ast", 0))
+                )
+                & (
+                    df_hist["Autres"].astype(float)
+                    == float(st.session_state.get("n_aut", 0))
+                )
                 & (df_hist["Mois"].str.contains(nom_mois_base))
             ]
 
@@ -695,19 +798,34 @@ elif st.session_state.page == "RESULTATS":
                     & (df_hist["Mois"].str.startswith(base_combinee))
                 ]
 
-                nom_version = f"{base_combinee}Mod{len(exist_versions)}" if not exist_versions.empty else base_combinee
+                nom_version = (
+                    f"{base_combinee}Mod{len(exist_versions)}"
+                    if not exist_versions.empty
+                    else base_combinee
+                )
 
                 new_row = {
-                    "Utilisateur": current_user, "Mois": nom_version, "Annee": annee_sel,
-                    "Revenu": st.session_state.get("n_rev", 0), "Loyer": st.session_state.get("n_loy", 0),
-                    "Scolarite": st.session_state.get("n_sco", 0), "Ration": st.session_state.get("n_rat", 0),
-                    "Dette": st.session_state.get("n_det", 0), "Poche": st.session_state.get("n_poc", 0),
-                    "Assistance": st.session_state.get("n_ast", 0), "Autres": st.session_state.get("n_aut", 0),
-                    "Total_Depenses": st.session_state.get("total_dep", 0), "Epargne": st.session_state.get("epargne", 0),
-                    "Date_Enregistrement": pd.Timestamp.now().strftime("%d/%m/%Y %H:%M"),
+                    "Utilisateur": current_user,
+                    "Mois": nom_version,
+                    "Annee": annee_sel,
+                    "Revenu": st.session_state.get("n_rev", 0),
+                    "Loyer": st.session_state.get("n_loy", 0),
+                    "Scolarite": st.session_state.get("n_sco", 0),
+                    "Ration": st.session_state.get("n_rat", 0),
+                    "Dette": st.session_state.get("n_det", 0),
+                    "Poche": st.session_state.get("n_poc", 0),
+                    "Assistance": st.session_state.get("n_ast", 0),
+                    "Autres": st.session_state.get("n_aut", 0),
+                    "Total_Depenses": st.session_state.get("total_dep", 0),
+                    "Epargne": st.session_state.get("epargne", 0),
+                    "Date_Enregistrement": pd.Timestamp.now().strftime(
+                        "%d/%m/%Y %H:%M"
+                    ),
                 }
 
-                pd.concat([df_hist, pd.DataFrame([new_row])], ignore_index=True).to_csv(FILE_DATA, index=False)
+                pd.concat([df_hist, pd.DataFrame([new_row])], ignore_index=True).to_csv(
+                    FILE_DATA, index=False
+                )
                 st.success(f"✅ Enregistré : {nom_version}")
                 time.sleep(1)
                 st.session_state.page = "MAIN_APP"
@@ -820,18 +938,30 @@ elif st.session_state.page == "PROGRESS":
                     subset=["Mois_Base", "Annee"], keep="last"
                 )
 
-               # --- 🟢 INTERFACE 1 : GRAPHIQUES (CORRIGÉ POUR DUPLICATE ERROR) ---
+                # --- 🟢 INTERFACE 1 : GRAPHIQUES (CORRIGÉ POUR DUPLICATE ERROR) ---
                 if not is_mode_2:
                     import plotly.graph_objects as go
 
                     c_f1, c_f2, c_f3 = st.columns(3)
-                    type_graph = c_f1.selectbox("Type de graphique", ["Courbe", "Barre", "Aire", "Points"])
-                    periode = c_f2.selectbox("Période d'analyse", ["Par Mois", "Par Année"])
-                    intervalle = c_f3.selectbox("Échelle (Palier)", [50, 100, 200, 500, 1000], index=3)
+                    type_graph = c_f1.selectbox(
+                        "Type de graphique", ["Courbe", "Barre", "Aire", "Points"]
+                    )
+                    periode = c_f2.selectbox(
+                        "Période d'analyse", ["Par Mois", "Par Année"]
+                    )
+                    intervalle = c_f3.selectbox(
+                        "Échelle (Palier)", [50, 100, 200, 500, 1000], index=3
+                    )
 
                     # Préparation des données sans créer de doublons de colonnes
                     if periode == "Par Année":
-                        df_plot = data_final.groupby("Annee")[["Epargne", "Total_Depenses", "Revenu"]].sum().reset_index()
+                        df_plot = (
+                            data_final.groupby("Annee")[
+                                ["Epargne", "Total_Depenses", "Revenu"]
+                            ]
+                            .sum()
+                            .reset_index()
+                        )
                         x_axis_label = "Annee"
                     else:
                         df_plot = data_final.copy()
@@ -839,40 +969,91 @@ elif st.session_state.page == "PROGRESS":
                         x_axis_label = "Mois_Base"
 
                     # CALCUL DE LA LIMITE STRICTE (Basée sur le maximum des données)
-                    val_max = float(df_plot[["Epargne", "Total_Depenses", "Revenu"]].max().max())
+                    val_max = float(
+                        df_plot[["Epargne", "Total_Depenses", "Revenu"]].max().max()
+                    )
                     y_limit_fixe = ((val_max // intervalle) + 2) * intervalle
 
                     st.write(f"### Évolution de l'Épargne ({periode})")
-                    
+
                     fig1 = go.Figure()
                     color_epargne = "#2e7d32"
-                    
+
                     if type_graph == "Barre":
-                        fig1.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Epargne"], marker_color=color_epargne, name="Épargne"))
+                        fig1.add_trace(
+                            go.Bar(
+                                x=df_plot[x_axis_label],
+                                y=df_plot["Epargne"],
+                                marker_color=color_epargne,
+                                name="Épargne",
+                            )
+                        )
                     elif type_graph == "Aire":
-                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], fill='tozeroy', line=dict(color=color_epargne), name="Épargne"))
+                        fig1.add_trace(
+                            go.Scatter(
+                                x=df_plot[x_axis_label],
+                                y=df_plot["Epargne"],
+                                fill="tozeroy",
+                                line=dict(color=color_epargne),
+                                name="Épargne",
+                            )
+                        )
                     elif type_graph == "Points":
-                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], mode='markers', marker=dict(size=12, color=color_epargne), name="Épargne"))
-                    else: # Courbe
-                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], mode='lines+markers', line=dict(color=color_epargne, width=3), name="Épargne"))
+                        fig1.add_trace(
+                            go.Scatter(
+                                x=df_plot[x_axis_label],
+                                y=df_plot["Epargne"],
+                                mode="markers",
+                                marker=dict(size=12, color=color_epargne),
+                                name="Épargne",
+                            )
+                        )
+                    else:  # Courbe
+                        fig1.add_trace(
+                            go.Scatter(
+                                x=df_plot[x_axis_label],
+                                y=df_plot["Epargne"],
+                                mode="lines+markers",
+                                line=dict(color=color_epargne, width=3),
+                                name="Épargne",
+                            )
+                        )
 
                     fig1.update_layout(
-                        yaxis=dict(range=[0, y_limit_fixe], dtick=intervalle, title="Montant $"),
+                        yaxis=dict(
+                            range=[0, y_limit_fixe], dtick=intervalle, title="Montant $"
+                        ),
                         margin=dict(l=50, r=20, t=20, b=20),
-                        height=400
+                        height=400,
                     )
                     st.plotly_chart(fig1, use_container_width=True)
 
                     st.write("### Comparaison Épargne vs Dépenses")
                     fig2 = go.Figure()
-                    fig2.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Total_Depenses"], name="Dépenses", marker_color="#64B5F6"))
-                    fig2.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Epargne"], name="Épargne", marker_color="#1976D2"))
-                    
+                    fig2.add_trace(
+                        go.Bar(
+                            x=df_plot[x_axis_label],
+                            y=df_plot["Total_Depenses"],
+                            name="Dépenses",
+                            marker_color="#64B5F6",
+                        )
+                    )
+                    fig2.add_trace(
+                        go.Bar(
+                            x=df_plot[x_axis_label],
+                            y=df_plot["Epargne"],
+                            name="Épargne",
+                            marker_color="#1976D2",
+                        )
+                    )
+
                     fig2.update_layout(
-                        barmode='group',
-                        yaxis=dict(range=[0, y_limit_fixe], dtick=intervalle, title="Montant $"),
+                        barmode="group",
+                        yaxis=dict(
+                            range=[0, y_limit_fixe], dtick=intervalle, title="Montant $"
+                        ),
                         height=400,
-                        margin=dict(l=50, r=20, t=20, b=20)
+                        margin=dict(l=50, r=20, t=20, b=20),
                     )
                     st.plotly_chart(fig2, use_container_width=True)
                     st.write("---")
