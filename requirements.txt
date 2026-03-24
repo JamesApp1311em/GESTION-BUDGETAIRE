@@ -1,0 +1,6 @@
+streamlit
+pandas
+fpdf
+plotly
+matplotlib
+altair
