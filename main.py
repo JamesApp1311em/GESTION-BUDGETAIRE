@@ -5,61 +5,33 @@ import time
 from fpdf import FPDF
 import datetime
 
-# --- 1. DÉFINITION DES CONSTANTES (INDISPENSABLE ICI POUR ÉVITER LE NAMEERROR) ---
-FILE_CLIENTS = "clients.csv"
-FILE_DATA = "historique_complet.csv"
-
-# --- 2. GESTION INTELLIGENTE DE LA BASE DE DONNÉES ---
-class FakeDB(dict):
-    """Simule Replit DB sur Streamlit Cloud avec la fonction .prefix()"""
-    def prefix(self, p):
-        return [k for k in self.keys() if k.startswith(p)]
-
-try:
-    from replit import db
-    use_replit_db = True
-except (ImportError, ModuleNotFoundError):
-    # Initialisation de la base factice
-    db = FakeDB()
-    use_replit_db = False
-
-    # Chargement initial depuis le CSV pour éviter les mots de passe "None"
-    if os.path.exists(FILE_CLIENTS):
-        try:
-            df_init = pd.read_csv(FILE_CLIENTS)
-            for _, row in df_init.iterrows():
-                # On remplit la DB interne avec les infos du fichier
-                db[f"user_profile_{row['name']}"] = {
-                    "pw_open_modify": str(row["pw_open_modify"]),
-                    "pw_adm_print_prog": str(row["pw_adm_print_prog"]),
-                    "pw_user_adm": str(row["pw_user_adm"]),
-                    "status": str(row["status"])
-                }
-        except Exception:
-            pass
-
-# --- 1. CONFIGURATION DE LA PAGE ---
-# Garde bien ceci juste APRÈS les imports et la définition de FakeDB
+# --- 1. CONFIGURATION DE LA PAGE (DOIT ÊTRE EN PREMIER) ---
 st.set_page_config(
     page_title="Gestionnaire de Dépenses",
-    page_icon="💰", 
     layout="centered",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # --- 2. INITIALISATION DU SESSION STATE ---
+# Correction : Ajout des indentations de 4 espaces après chaque 'if'
 if "page" not in st.session_state:
     st.session_state.page = "ACCEUIL"
+
 if "inputs_locked" not in st.session_state:
     st.session_state.inputs_locked = True
+
 if "confirm_exit" not in st.session_state:
     st.session_state.confirm_exit = False
+
 if "show_extend_table" not in st.session_state:
     st.session_state.show_extend_table = False
+
 if "current_user" not in st.session_state:
     st.session_state.current_user = None
+
 if "show_menu" not in st.session_state:
     st.session_state.show_menu = False
+
 if "dev_mode" not in st.session_state:
     st.session_state.dev_mode = False
 
@@ -68,49 +40,48 @@ visibility = "hidden" if not st.session_state.dev_mode else "visible"
 display_mode = "none" if not st.session_state.dev_mode else "block"
 
 hide_st_style = f"""
-    <style>
-    /* Masquage des menus standards */
-    header {{ visibility: {visibility} !important; }}
-    footer {{ visibility: {visibility} !important; }}
-    #MainMenu {{ visibility: {visibility} !important; }}
+<style>
+/* Masquage des menus standards */
+header {{ visibility: {visibility} !important; }}
+footer {{ visibility: {visibility} !important; }}
+#MainMenu {{ visibility: {visibility} !important; }}
 
-    /* --- CIBLE L'IMAGE 1 (Ordinateur : Manage App) --- */
-    [data-testid="stStatusWidget"], 
-    .stAppDeployButton,
-    div[class*="st-emotion-cache-1ky0h6e"],
-    div[data-testid="stToolbar"] {{
-        display: {display_mode} !important;
-    }}
+/* --- CIBLE L'IMAGE 1 (Ordinateur : Manage App) --- */
+[data-testid="stStatusWidget"],
+.stAppDeployButton,
+div[class*="st-emotion-cache-1ky0h6e"],
+div[data-testid="stToolbar"] {{
+    display: {display_mode} !important;
+}}
 
-    /* --- CIBLE L'IMAGE 2 (Android : Fork, Crown, etc.) --- */
-    /* On utilise un sélecteur qui attrape tous les conteneurs flottants de Streamlit */
-    div[class*="viewerBadge"],
-    div[class*="st-emotion-cache-kgp75f"],
-    div[class*="st-emotion-cache-15z92p2"],
-    div[class*="st-emotion-cache-1647p8l"],
-    .stDeployButton {{
-        display: {display_mode} !important;
-        visibility: {visibility} !important;
-    }}
+/* --- CIBLE L'IMAGE 2 (Android : Fork, Crown, etc.) --- */
+div[class*="viewerBadge"],
+div[class*="st-emotion-cache-kgp75f"],
+div[class*="st-emotion-cache-15z92p2"],
+div[class*="st-emotion-cache-1647p8l"],
+.stDeployButton {{
+    display: {display_mode} !important;
+    visibility: {visibility} !important;
+}}
 
-    /* Empêcher le pull-to-refresh et fixer l'écran */
-    html, body {{
-        overscroll-behavior-y: contain !important;
-        overflow: hidden !important;
-    }}
-    
-    .stMain {{ 
-        overflow-y: auto !important; 
-    }}
-    </style>
+/* Empêcher le pull-to-refresh et fixer l'écran */
+html, body {{
+    overscroll-behavior-y: contain !important;
+    overflow: hidden !important;
+}}
+.stMain {{
+    overflow-y: auto !important;
+}}
+</style>
 """
 st.markdown(hide_st_style, unsafe_allow_html=True)
+
 # --- 4. INITIALISATION DES BASES DE DONNÉES ---
 FILE_CLIENTS = "clients.csv"
 FILE_DATA = "historique_complet.csv"
 
-
 def init_db():
+    # Correction : Indentation à l'intérieur de la fonction
     if not os.path.exists(FILE_CLIENTS) or os.stat(FILE_CLIENTS).st_size == 0:
         columns_clients = [
             "name",
@@ -140,78 +111,10 @@ def init_db():
         ]
         pd.DataFrame(columns=columns_data).to_csv(FILE_DATA, index=False)
 
-
+# Appel de la fonction
 init_db()
-# --- AJOUTER CES FONCTIONS ICI ---
 
-
-def sauvegarder_utilisateur_db(username, pw_open, pw_adm, pw_user_adm, status="Active"):
-    """Enregistre ou met à jour un profil utilisateur dans Replit DB et CSV"""
-    # 1. Sauvegarde dans Replit DB
-    db[f"user_profile_{username}"] = {
-        "pw_open_modify": pw_open,
-        "pw_adm_print_prog": pw_adm,
-        "pw_user_adm": pw_user_adm,
-        "status": status,
-    }
-    
-    # 2. Sauvegarde miroir dans le CSV (pour accès téléphone)
-    new_user = pd.DataFrame([[username, pw_open, pw_adm, pw_user_adm, status]], 
-                            columns=["name", "pw_open_modify", "pw_adm_print_prog", "pw_user_adm", "status"])
-    new_user.to_csv(FILE_CLIENTS, mode='a', header=False, index=False)
-
-
-def sauvegarder_data_db(username, mois, annee, revenu, depenses_dict, total, epargne):
-    """Enregistre une entrée budgétaire dans Replit DB et CSV"""
-    date_now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    key = f"data_{username}_{mois}_{annee}"
-    
-    # 1. Sauvegarde dans Replit DB
-    db[key] = {
-        "Utilisateur": username,
-        "Mois": mois,
-        "Annee": annee,
-        "Revenu": revenu,
-        "Depenses": depenses_dict,
-        "Total_Depenses": total,
-        "Epargne": epargne,
-        "Date": date_now,
-    }
-    
-    # 2. Sauvegarde miroir dans le CSV (pour historique téléphone)
-    new_data = pd.DataFrame([[
-        username, mois, annee, revenu, 
-        depenses_dict.get("Loyer", 0), depenses_dict.get("Scolarite", 0),
-        depenses_dict.get("Ration", 0), depenses_dict.get("Dette", 0),
-        depenses_dict.get("Poche", 0), depenses_dict.get("Assistance", 0),
-        depenses_dict.get("Autres", 0), total, epargne, date_now
-    ]], columns=[
-        "Utilisateur", "Mois", "Annee", "Revenu", "Loyer", "Scolarite", 
-        "Ration", "Dette", "Poche", "Assistance", "Autres", 
-        "Total_Depenses", "Epargne", "Date_Enregistrement"
-    ])
-    new_data.to_csv(FILE_DATA, mode='a', header=False, index=False)
-
-
-def recuperer_historique_db(username):
-    """Récupère toutes les données d'un utilisateur depuis Replit DB ou CSV"""
-    historique = []
-    
-    # Priorité à Replit DB si disponible et non vide
-    keys = db.prefix(f"data_{username}")
-    if keys:
-        for key in keys:
-            historique.append(db[key])
-        return pd.DataFrame(historique)
-    
-    # Sinon (cas du téléphone), lecture depuis le CSV
-    elif os.path.exists(FILE_DATA):
-        df_all = pd.read_csv(FILE_DATA)
-        return df_all[df_all["Utilisateur"] == username]
-    
-    return pd.DataFrame()
 # --- 5. FONCTIONS TECHNIQUES ---
-
 
 def create_pdf(row):
     """Génère le bulletin de paie au format PDF"""
@@ -282,10 +185,12 @@ def create_pdf(row):
     obs = "GOOD" if float(row["Epargne"]) > 0 else "BAD"
     pdf.ln(5)
     pdf.cell(45, 10, "OBSERVATION", 1, 0, "L", True)
+    
     if obs == "GOOD":
-        pdf.set_fill_color(144, 238, 144)  # Vert
+        pdf.set_fill_color(144, 238, 144) # Vert
     else:
-        pdf.set_fill_color(255, 99, 71)  # Rouge
+        pdf.set_fill_color(255, 99, 71) # Rouge
+    
     pdf.cell(145, 10, obs, 1, 1, "C", True)
 
     # Pied de page
@@ -299,13 +204,16 @@ def create_pdf(row):
         1,
         "R",
     )
-
-    # RETOUR BINAIRE CORRECT
-    return pdf.output(dest="S").encode("latin-1")
+    # ... après le pied de page ...
+    # On convertit explicitement en bytes pour Streamlit
+    pdf_output = pdf.output(dest='S')
+    if isinstance(pdf_output, str):
+        return pdf_output.encode('latin-1')
+    return bytes(pdf_output)
 
 
 # --- LOGIQUE DES PAGES (A SUIVRE...) ---
-# --- . LOGIQUE DE FERMETURE (QUITTER L'APP) ---
+# --- 4. LOGIQUE DE FERMETURE (QUITTER L'APP) ---
 if st.session_state.confirm_exit:
     with st.container(border=True):
         st.warning("⚠️ Êtes-vous sûr de vouloir fermer l'application ?")
@@ -316,7 +224,7 @@ if st.session_state.confirm_exit:
             st.session_state.confirm_exit = False
             st.rerun()
 
-# --- 6. PAGE : ACCEUIL ---
+# --- 5. PAGE : ACCEUIL ---
 elif st.session_state.page == "ACCEUIL":
     with st.container(border=True):
         st.markdown(
@@ -326,44 +234,29 @@ elif st.session_state.page == "ACCEUIL":
         u_p = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password")
 
         if st.button("🚀 OPEN APP", use_container_width=True):
-            user_key = f"user_profile_{u_n}"
-            user_data = None
-            user_found = False
+            df = pd.read_csv(FILE_CLIENTS, dtype=str).fillna("")
+            user_match = df[df["name"].str.strip() == str(u_n).strip()]
 
-            # 1. ON CHERCHE D'ABORD DANS LA DB (Replit)
-            if user_key in db:
-                user_data = db[user_key]
-                user_found = True
-            
-            # 2. SINON ON CHERCHE DANS LE CSV (Pour le téléphone)
-            elif os.path.exists(FILE_CLIENTS):
-                df_c = pd.read_csv(FILE_CLIENTS)
-                match = df_c[df_c['name'] == u_n]
-                if not match.empty:
-                    user_data = match.iloc[0].to_dict()
-                    user_found = True
-
-            # --- LOGIQUE DE VÉRIFICATION ---
-            if user_found:
-                # Vérification du mot de passe
-                if str(user_data["pw_open_modify"]) == str(u_p).strip():
-                    # Vérification du statut
-                    if str(user_data["status"]).lower() in ["true", "active"]:
-                        st.session_state.update(
-                            {
-                                "current_user": u_n,
-                                "user_pw_open": str(u_p).strip(),
-                                "user_pw_adm_extra": user_data["pw_adm_print_prog"],
-                                "page": "MAIN_APP",
-                            }
-                        )
-                        st.rerun()
-                    else:
-                        st.error("⚠️ Compte bloqué.")
+            if (
+                not user_match.empty
+                and user_match.iloc[0]["pw_open_modify"] == str(u_p).strip()
+            ):
+                if user_match.iloc[0]["status"].lower() in ["true", "active"]:
+                    st.session_state.update(
+                        {
+                            "current_user": u_n,
+                            "user_pw_open": str(u_p).strip(),
+                            "user_pw_adm_extra": user_match.iloc[0][
+                                "pw_adm_print_prog"
+                            ],
+                            "page": "MAIN_APP",
+                        }
+                    )
+                    st.rerun()
                 else:
-                    st.error("❌ Mot de passe incorrect.")
+                    st.error("⚠️ Votre compte est bloqué. Contactez l'administrateur.")
             else:
-                st.error("❌ Utilisateur inexistant dans la base persistante.")
+                st.error("❌ Nom d'utilisateur ou mot de passe incorrect.")
 
         st.write("---")
         st.write("### Autres options d'accès")
@@ -378,9 +271,9 @@ elif st.session_state.page == "ACCEUIL":
             st.session_state.page = "VERIF_USER_ADM"
             st.rerun()
 
-        st.write("---")
+    st.write("---")
 
-# --- 7. PAGE : LOGIN (CRÉATION DE COMPTE) ---
+# --- 6. PAGE : LOGIN (CRÉATION DE COMPTE) ---
 elif st.session_state.page == "LOGIN":
     with st.container(border=True):
         st.markdown(
@@ -396,14 +289,24 @@ elif st.session_state.page == "LOGIN":
         new_p2 = st.text_input("PASSWORD (ADM / PRINT / PROGRESS)", type="password")
         new_p3 = st.text_input("PASSWORD (USER ADM)", type="password")
 
-        if st.button("💾 ENREGISTRER L'UTILISATEUR", use_container_width=True):
+        if st.button(
+            "💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="primary"
+        ):
             if new_n and new_p1 and new_p2 and new_p3:
-                user_key = f"user_profile_{new_n}"
-                if user_key in db:
+                df_clients = pd.read_csv(FILE_CLIENTS, dtype=str)
+                if new_n in df_clients["name"].values:
                     st.error("Ce nom d'utilisateur existe déjà.")
                 else:
-                    # SAUVEGARDE PERSISTANTE DANS REPLIT DB
-                    sauvegarder_utilisateur_db(new_n, new_p1, new_p2, new_p3)
+                    new_entry = {
+                        "name": new_n,
+                        "pw_open_modify": new_p1,
+                        "pw_adm_print_prog": new_p2,
+                        "pw_user_adm": new_p3,
+                        "status": "Active",
+                    }
+                    pd.concat(
+                        [df_clients, pd.DataFrame([new_entry])], ignore_index=True
+                    ).to_csv(FILE_CLIENTS, index=False)
                     st.success(f"Compte pour '{new_n}' créé avec succès !")
                     st.session_state.page = "ACCEUIL"
                     st.rerun()
@@ -414,7 +317,7 @@ elif st.session_state.page == "LOGIN":
             st.session_state.page = "ACCEUIL"
             st.rerun()
 
-# --- 8. PAGE : VERIF ADMIN ---
+# --- 7. PAGE : VERIF ADMIN ---
 elif st.session_state.page == "VERIF_ADM":
     with st.container(border=True):
         st.subheader("Authentification Administrateur Système")
@@ -429,7 +332,7 @@ elif st.session_state.page == "VERIF_ADM":
             st.session_state.page = "ACCEUIL"
             st.rerun()
 
-# --- 9. PAGE : APP ADM (ADMINISTRATION) ---
+# --- 8. PAGE : APP ADM (ADMINISTRATION) ---
 elif st.session_state.page == "APP_ADM":
     with st.container(border=True):
         st.markdown(
@@ -438,125 +341,61 @@ elif st.session_state.page == "APP_ADM":
         )
         st.write("Gestion des comptes utilisateurs et accès système.")
 
-        # --- LIGNE DE BOUTONS ---
         col_ext, col_dev = st.columns(2)
 
         with col_ext:
             if st.button("📂 EXTEND", use_container_width=True):
-                st.session_state.show_extend_table = not st.session_state.get("show_extend_table", False)
+                st.session_state.show_extend_table = not st.session_state.get(
+                    "show_extend_table", False
+                )
 
         with col_dev:
-            label_dev = "🔒 CACHER MENUS" if st.session_state.get("dev_mode") else "🔓 OPTIONS DEV"
+            label_dev = (
+                "🔒 CACHER MENUS"
+                if st.session_state.get("dev_mode")
+                else "🔓 OPTIONS DEV"
+            )
             if st.button(label_dev, use_container_width=True):
                 st.session_state.dev_mode = not st.session_state.get("dev_mode", False)
                 st.rerun()
 
-        # --- RÉCUPÉRATION DES DONNÉES ---
-        all_users = []
-        
-        # On utilise le db (qui contient maintenant les données du CSV grâce au nouveau FakeDB)
-        keys = db.prefix("user_profile_")
-        for key in keys:
-            user_data = db[key]
-            username = key.replace("user_profile_", "")
-            all_users.append({
-                "name": username,
-                "status": user_data.get("status", "Active"),
-                "pw_open": user_data.get("pw_open_modify"),
-                "pw_adm": user_data.get("pw_adm_print_prog"),
-                "pw_user_adm": user_data.get("pw_user_adm")
-            })
-        
-        df_adm = pd.DataFrame(all_users)
-
-        # Affichage de la table EXTEND
-        if st.session_state.get("show_extend_table") and not df_adm.empty:
+        if st.session_state.get("show_extend_table"):
             st.write("### Base de données complète des utilisateurs")
-            st.dataframe(df_adm, use_container_width=True)
+            df_full = pd.read_csv(FILE_CLIENTS, dtype=str)
+            st.dataframe(df_full, use_container_width=True)
             st.write("---")
 
         st.subheader("Liste des comptes et Status")
-        
-        if df_adm.empty:
-            st.warning("Aucun utilisateur trouvé dans la base de données.")
-        else:
-            for idx, row in df_adm.iterrows():
-                with st.container(border=True):
-                    c1, c2, c3 = st.columns([2, 1, 1])
-                    c1.write(f"👤 **{row['name']}**")
+        df_adm = pd.read_csv(FILE_CLIENTS, dtype=str).fillna("")
 
-                    is_active = str(row["status"]).lower() in ["active", "true"]
-                    status_label = "ACTIVE" if is_active else "BLOCKED"
+        for idx, row in df_adm.iterrows():
+            with st.container(border=True):
+                c1, c2, c3 = st.columns([2, 1, 1])
+                c1.write(f"👤 **{row['name']}**")
 
-                    if c2.checkbox(f"Statut: {status_label}", value=is_active, key=f"chk_{row['name']}"):
-                        if not is_active:
-                            new_status = "Active"
-                            db[f"user_profile_{row['name']}"]["status"] = new_status
-                            df_upd = pd.read_csv(FILE_CLIENTS)
-                            df_upd.loc[df_upd['name'] == row['name'], 'status'] = new_status
-                            df_upd.to_csv(FILE_CLIENTS, index=False)
-                            st.rerun()
-                    else:
-                        if is_active:
-                            new_status = "Blocked"
-                            db[f"user_profile_{row['name']}"]["status"] = new_status
-                            df_upd = pd.read_csv(FILE_CLIENTS)
-                            df_upd.loc[df_upd['name'] == row['name'], 'status'] = new_status
-                            df_upd.to_csv(FILE_CLIENTS, index=False)
-                            st.rerun()
+                is_active = row["status"].lower() in ["true", "active"]
+                status_label = "ACTIVE" if is_active else "BLOCKED"
 
-                    if c3.button("🗑️", key=f"btn_del_{row['name']}"):
-                        if f"user_profile_{row['name']}" in db:
-                            del db[f"user_profile_{row['name']}"]
-                        df_upd = pd.read_csv(FILE_CLIENTS)
-                        df_upd = df_upd[df_upd['name'] != row['name']]
-                        df_upd.to_csv(FILE_CLIENTS, index=False)
-                        st.rerun()
+                if (
+                    c2.checkbox(
+                        f"Statut: {status_label}", value=is_active, key=f"chk_{idx}"
+                    )
+                    != is_active
+                ):
+                    df_adm.at[idx, "status"] = "Active" if not is_active else "Blocked"
+                    df_adm.to_csv(FILE_CLIENTS, index=False)
+                    st.rerun()
+
+                if c3.button("🗑️", key=f"btn_del_{idx}"):
+                    df_adm.drop(idx).to_csv(FILE_CLIENTS, index=False)
+                    st.rerun()
 
         if st.button("⬅️ QUITTER L'ADMINISTRATION", use_container_width=True):
             st.session_state.page = "ACCEUIL"
             st.rerun()
-
-# --- 10. PAGE : VERIF USER ADM (ACCÈS AU PROFIL) ---
-elif st.session_state.page == "VERIF_USER_ADM":
-    with st.container(border=True):
-        st.subheader("Authentification Profil Utilisateur")
-        u_name = st.text_input("NOM D'UTILISATEUR")
-        u_pass_adm = st.text_input("MOT DE PASSE (USER ADM)", type="password")
-        
-        if st.button("ACCÉDER AU PROFIL", use_container_width=True):
-            user_key = f"user_profile_{u_name}"
-            user_found = False
-            user_data = None
-
-            # Vérification Replit DB
-            if user_key in db:
-                user_data = db[user_key]
-                user_found = True
-            # Vérification CSV
-            elif os.path.exists(FILE_CLIENTS):
-                df_c = pd.read_csv(FILE_CLIENTS)
-                match = df_c[df_c['name'] == u_name]
-                if not match.empty:
-                    user_data = match.iloc[0].to_dict()
-                    user_found = True
-
-            if user_found:
-                if str(user_data.get("pw_user_adm")) == str(u_pass_adm):
-                    st.session_state.temp_user = u_name
-                    st.session_state.page = "EDIT_PROFILE"
-                    st.rerun()
-                else:
-                    st.error("Mot de passe USER ADM incorrect.")
-            else:
-                st.error("Utilisateur introuvable.")
-        
-        if st.button("⬅️ RETOUR"):
-            st.session_state.page = "ACCEUIL"
-            st.rerun()
-# --- 10. PAGE : MAIN APP (APPLICATION PRINCIPALE) ---
+# --- 9. PAGE : MAIN APP (APPLICATION PRINCIPALE) ---
 elif st.session_state.page == "MAIN_APP":
-    # 1. Chargement des données AU DÉBUT du bloc
+    # Correction : Ces lignes doivent être indentées pour appartenir au elif
     df_h = pd.read_csv(FILE_DATA)
     user_recs = df_h[df_h["Utilisateur"] == st.session_state.current_user].copy()
 
@@ -599,18 +438,8 @@ elif st.session_state.page == "MAIN_APP":
             if st.session_state.get("show_date_picker"):
                 with st.container(border=True):
                     m_list = [
-                        "Janvier",
-                        "Février",
-                        "Mars",
-                        "Avril",
-                        "Mai",
-                        "Juin",
-                        "Juillet",
-                        "Août",
-                        "Septembre",
-                        "Octobre",
-                        "Novembre",
-                        "Décembre",
+                        "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+                        "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
                     ]
                     m_c = st.selectbox("Mois", m_list)
                     a_c = st.selectbox("Année", [str(a) for a in range(2024, 2100)])
@@ -660,14 +489,8 @@ elif st.session_state.page == "MAIN_APP":
                                 {"sel_mois_affiche": m_c, "inputs_locked": False}
                             )
                             for k in [
-                                "n_rev",
-                                "n_loy",
-                                "n_sco",
-                                "n_rat",
-                                "n_det",
-                                "n_poc",
-                                "n_ast",
-                                "n_aut",
+                                "n_rev", "n_loy", "n_sco", "n_rat",
+                                "n_det", "n_poc", "n_ast", "n_aut"
                             ]:
                                 st.session_state[k] = 0
                         st.rerun()
@@ -708,10 +531,8 @@ elif st.session_state.page == "MAIN_APP":
                                 user_recs["Mois"] == choix_pdf
                             ].iloc[0]
 
-                            # On génère les bytes directement
                             pdf_bytes = create_pdf(row_selected)
 
-                            # On passe pdf_bytes directement à data
                             st.download_button(
                                 label="📥 Télécharger PDF",
                                 data=pdf_bytes,
@@ -719,6 +540,7 @@ elif st.session_state.page == "MAIN_APP":
                                 mime="application/pdf",
                                 use_container_width=True,
                             )
+
         # --- ADMIN & PROGRESSION ---
         c_adm, c_prog = st.columns(2)
         with c_adm:
@@ -758,13 +580,9 @@ elif st.session_state.page == "MAIN_APP":
             if sel_m_base and L:
                 versions_du_mois = user_recs[
                     (user_recs["Mois"].str.startswith(sel_m_base))
-                    & (
-                        user_recs["Annee"].astype(str)
-                        == st.session_state.get("sel_annee")
-                    )
+                    & (user_recs["Annee"].astype(str) == st.session_state.get("sel_annee"))
                 ]
                 if not versions_du_mois.empty:
-
                     def ext_v(n):
                         return int(n.split("Mod")[-1]) if "Mod" in n else 0
 
@@ -772,10 +590,7 @@ elif st.session_state.page == "MAIN_APP":
                     cur_v = ext_v(st.session_state.get("sel_mois_affiche", ""))
 
                     if cur_v == max_v:
-                        # LE BOUTON AVEC LA BONNE VARIABLE : user_pw_open
-                        if st.button(
-                            "📝 MODIFIER LA DERNIÈRE VERSION", use_container_width=True
-                        ):
+                        if st.button("📝 MODIFIER LA DERNIÈRE VERSION", use_container_width=True):
                             st.session_state.ask_lock_pwd = True
 
                         if st.session_state.get("ask_lock_pwd"):
@@ -784,10 +599,7 @@ elif st.session_state.page == "MAIN_APP":
                                     "Entrez le PASSWORD (MODIFY)", type="password"
                                 )
                                 if st.button("🔓 DÉVERROUILLER"):
-                                    # Correction ici : on utilise la clé exacte de ton bloc ACCEUIL
-                                    if pwd_bulletin == st.session_state.get(
-                                        "user_pw_open"
-                                    ):
+                                    if pwd_bulletin == st.session_state.get("user_pw_open"):
                                         st.session_state.inputs_locked = False
                                         st.session_state.ask_lock_pwd = False
                                         st.success("Accès autorisé")
@@ -796,82 +608,47 @@ elif st.session_state.page == "MAIN_APP":
                                         st.error("Mot de passe incorrect.")
                     else:
                         st.warning(f"⚠️ Lecture seule : Version Mod {max_v} disponible.")
-                else:
-                    if st.button("📝 MODIFIER LES DONNÉES", use_container_width=True):
-                        st.session_state.inputs_locked = False
-                        st.rerun()
+            else:
+                if st.button("📝 MODIFIER LES DONNÉES", use_container_width=True):
+                    st.session_state.inputs_locked = False
+                    st.rerun()
 
             # --- AFFICHAGE DES CHAMPS ---
             col_m, col_a = st.columns(2)
-            col_m.text_input(
-                "MOIS EN COURS",
-                value=st.session_state.get("sel_mois_affiche", ""),
-                disabled=True,
-            )
-            col_a.text_input(
-                "ANNÉE", value=st.session_state.get("sel_annee", ""), disabled=True
-            )
+            col_m.text_input("MOIS EN COURS", value=st.session_state.get("sel_mois_affiche", ""), disabled=True)
+            col_a.text_input("ANNÉE", value=st.session_state.get("sel_annee", ""), disabled=True)
 
-            st.session_state.n_rev = st.number_input(
-                "REVENU GLOBAL ($)",
-                value=int(st.session_state.get("n_rev", 0)),
-                disabled=L,
-            )
+            st.session_state.n_rev = st.number_input("REVENU GLOBAL ($)", value=int(st.session_state.get("n_rev", 0)), disabled=L)
 
             c1, c2 = st.columns(2)
-            st.session_state.n_loy = c1.number_input(
-                "LOYER", value=int(st.session_state.get("n_loy", 0)), disabled=L
-            )
-            st.session_state.n_sco = c1.number_input(
-                "SCOLARITÉ", value=int(st.session_state.get("n_sco", 0)), disabled=L
-            )
-            st.session_state.n_rat = c1.number_input(
-                "RATION", value=int(st.session_state.get("n_rat", 0)), disabled=L
-            )
-            st.session_state.n_det = c2.number_input(
-                "DETTES", value=int(st.session_state.get("n_det", 0)), disabled=L
-            )
-            st.session_state.n_poc = c2.number_input(
-                "POCHE", value=int(st.session_state.get("n_poc", 0)), disabled=L
-            )
-            st.session_state.n_ast = c2.number_input(
-                "ASSISTANCE", value=int(st.session_state.get("n_ast", 0)), disabled=L
-            )
-            st.session_state.n_aut = st.number_input(
-                "AUTRES", value=int(st.session_state.get("n_aut", 0)), disabled=L
-            )
+            st.session_state.n_loy = c1.number_input("LOYER", value=int(st.session_state.get("n_loy", 0)), disabled=L)
+            st.session_state.n_sco = c1.number_input("SCOLARITÉ", value=int(st.session_state.get("n_sco", 0)), disabled=L)
+            st.session_state.n_rat = c1.number_input("RATION", value=int(st.session_state.get("n_rat", 0)), disabled=L)
+            st.session_state.n_det = c2.number_input("DETTES", value=int(st.session_state.get("n_det", 0)), disabled=L)
+            st.session_state.n_poc = c2.number_input("POCHE", value=int(st.session_state.get("n_poc", 0)), disabled=L)
+            st.session_state.n_ast = c2.number_input("ASSISTANCE", value=int(st.session_state.get("n_ast", 0)), disabled=L)
+            st.session_state.n_aut = st.number_input("AUTRES", value=int(st.session_state.get("n_aut", 0)), disabled=L)
 
             if st.button("🚀 CALCULER", use_container_width=True, type="primary"):
                 if not st.session_state.get("sel_mois_base"):
                     st.warning("Sélectionnez d'abord un mois dans le MENU.")
                 else:
-                    st.session_state.total_dep = sum(
-                        [
-                            st.session_state.n_loy,
-                            st.session_state.n_sco,
-                            st.session_state.n_rat,
-                            st.session_state.n_det,
-                            st.session_state.n_poc,
-                            st.session_state.n_ast,
-                            st.session_state.n_aut,
-                        ]
-                    )
-                    st.session_state.epargne = (
-                        st.session_state.n_rev - st.session_state.total_dep
-                    )
+                    st.session_state.total_dep = sum([
+                        st.session_state.n_loy, st.session_state.n_sco, st.session_state.n_rat,
+                        st.session_state.n_det, st.session_state.n_poc, st.session_state.n_ast,
+                        st.session_state.n_aut
+                    ])
+                    st.session_state.epargne = st.session_state.n_rev - st.session_state.total_dep
                     st.session_state.page = "RESULTATS"
                     st.rerun()
 
-# --- 11. PAGE : RÉSULTATS ---
+# --- 10. PAGE : RÉSULTATS ---
 elif st.session_state.page == "RESULTATS":
     with st.container(border=True):
         nom_mois_base = st.session_state.get("sel_mois_base", "MOIS")
         annee_sel = str(st.session_state.get("sel_annee", "2024"))
 
-        st.markdown(
-            f"<h2 style='text-align: center;'>📊 BILAN : {nom_mois_base} {annee_sel}</h2>",
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"<h2 style='text-align: center;'>📊 BILAN : {nom_mois_base} {annee_sel}</h2>", unsafe_allow_html=True)
 
         rev_val = float(st.session_state.get("n_rev", 0))
         rev_pour_calcul = rev_val if rev_val > 0 else 1
@@ -879,11 +656,7 @@ elif st.session_state.page == "RESULTATS":
 
         col_res1, col_res2 = st.columns(2)
         col_res1.metric("TOTAL DÉPENSES", f"{st.session_state.get('total_dep', 0)} $")
-        col_res2.metric(
-            "ÉPARGNE NETTE",
-            f"{st.session_state.get('epargne', 0)} $",
-            delta=f"{ratio_epargne:.1f}%",
-        )
+        col_res2.metric("ÉPARGNE NETTE", f"{st.session_state.get('epargne', 0)} $", delta=f"{ratio_epargne:.1f}%")
 
         if st.session_state.get("epargne", 0) >= 0:
             st.success(f"Félicitations ! Épargne de {ratio_epargne:.1f}% du revenu.")
@@ -891,28 +664,12 @@ elif st.session_state.page == "RESULTATS":
             st.error(f"Déficit de {abs(st.session_state.get('epargne', 0))} $.")
 
         if st.button("💾 SAUVEGARDER CETTE VERSION", use_container_width=True):
-            import time
-            import os
-
             if not os.path.exists(FILE_DATA):
-                pd.DataFrame(
-                    columns=[
-                        "Utilisateur",
-                        "Mois",
-                        "Annee",
-                        "Revenu",
-                        "Loyer",
-                        "Scolarite",
-                        "Ration",
-                        "Dette",
-                        "Poche",
-                        "Assistance",
-                        "Autres",
-                        "Total_Depenses",
-                        "Epargne",
-                        "Date_Enregistrement",
-                    ]
-                ).to_csv(FILE_DATA, index=False)
+                pd.DataFrame(columns=[
+                    "Utilisateur", "Mois", "Annee", "Revenu", "Loyer", "Scolarite",
+                    "Ration", "Dette", "Poche", "Assistance", "Autres",
+                    "Total_Depenses", "Epargne", "Date_Enregistrement"
+                ]).to_csv(FILE_DATA, index=False)
 
             df_hist = pd.read_csv(FILE_DATA)
             current_user = st.session_state.current_user
@@ -920,43 +677,19 @@ elif st.session_state.page == "RESULTATS":
             doublon_exact = df_hist[
                 (df_hist["Utilisateur"] == current_user)
                 & (df_hist["Annee"].astype(str) == annee_sel)
-                & (
-                    df_hist["Revenu"].astype(float)
-                    == float(st.session_state.get("n_rev", 0))
-                )
-                & (
-                    df_hist["Loyer"].astype(float)
-                    == float(st.session_state.get("n_loy", 0))
-                )
-                & (
-                    df_hist["Scolarite"].astype(float)
-                    == float(st.session_state.get("n_sco", 0))
-                )
-                & (
-                    df_hist["Ration"].astype(float)
-                    == float(st.session_state.get("n_rat", 0))
-                )
-                & (
-                    df_hist["Dette"].astype(float)
-                    == float(st.session_state.get("n_det", 0))
-                )
-                & (
-                    df_hist["Poche"].astype(float)
-                    == float(st.session_state.get("n_poc", 0))
-                )
-                & (
-                    df_hist["Assistance"].astype(float)
-                    == float(st.session_state.get("n_ast", 0))
-                )
-                & (
-                    df_hist["Autres"].astype(float)
-                    == float(st.session_state.get("n_aut", 0))
-                )
+                & (df_hist["Revenu"].astype(float) == float(st.session_state.get("n_rev", 0)))
+                & (df_hist["Loyer"].astype(float) == float(st.session_state.get("n_loy", 0)))
+                & (df_hist["Scolarite"].astype(float) == float(st.session_state.get("n_sco", 0)))
+                & (df_hist["Ration"].astype(float) == float(st.session_state.get("n_rat", 0)))
+                & (df_hist["Dette"].astype(float) == float(st.session_state.get("n_det", 0)))
+                & (df_hist["Poche"].astype(float) == float(st.session_state.get("n_poc", 0)))
+                & (df_hist["Assistance"].astype(float) == float(st.session_state.get("n_ast", 0)))
+                & (df_hist["Autres"].astype(float) == float(st.session_state.get("n_aut", 0)))
                 & (df_hist["Mois"].str.contains(nom_mois_base))
             ]
 
             if not doublon_exact.empty:
-                st.warning(f"⚠️ Données déjà présentes. Aucune modification détectée.")
+                st.warning("⚠️ Données déjà présentes. Aucune modification détectée.")
             else:
                 base_combinee = f"{nom_mois_base}{annee_sel}"
                 exist_versions = df_hist[
@@ -964,34 +697,19 @@ elif st.session_state.page == "RESULTATS":
                     & (df_hist["Mois"].str.startswith(base_combinee))
                 ]
 
-                nom_version = (
-                    f"{base_combinee}Mod{len(exist_versions)}"
-                    if not exist_versions.empty
-                    else base_combinee
-                )
+                nom_version = f"{base_combinee}Mod{len(exist_versions)}" if not exist_versions.empty else base_combinee
 
                 new_row = {
-                    "Utilisateur": current_user,
-                    "Mois": nom_version,
-                    "Annee": annee_sel,
-                    "Revenu": st.session_state.get("n_rev", 0),
-                    "Loyer": st.session_state.get("n_loy", 0),
-                    "Scolarite": st.session_state.get("n_sco", 0),
-                    "Ration": st.session_state.get("n_rat", 0),
-                    "Dette": st.session_state.get("n_det", 0),
-                    "Poche": st.session_state.get("n_poc", 0),
-                    "Assistance": st.session_state.get("n_ast", 0),
-                    "Autres": st.session_state.get("n_aut", 0),
-                    "Total_Depenses": st.session_state.get("total_dep", 0),
-                    "Epargne": st.session_state.get("epargne", 0),
-                    "Date_Enregistrement": pd.Timestamp.now().strftime(
-                        "%d/%m/%Y %H:%M"
-                    ),
+                    "Utilisateur": current_user, "Mois": nom_version, "Annee": annee_sel,
+                    "Revenu": st.session_state.get("n_rev", 0), "Loyer": st.session_state.get("n_loy", 0),
+                    "Scolarite": st.session_state.get("n_sco", 0), "Ration": st.session_state.get("n_rat", 0),
+                    "Dette": st.session_state.get("n_det", 0), "Poche": st.session_state.get("n_poc", 0),
+                    "Assistance": st.session_state.get("n_ast", 0), "Autres": st.session_state.get("n_aut", 0),
+                    "Total_Depenses": st.session_state.get("total_dep", 0), "Epargne": st.session_state.get("epargne", 0),
+                    "Date_Enregistrement": pd.Timestamp.now().strftime("%d/%m/%Y %H:%M"),
                 }
 
-                pd.concat([df_hist, pd.DataFrame([new_row])], ignore_index=True).to_csv(
-                    FILE_DATA, index=False
-                )
+                pd.concat([df_hist, pd.DataFrame([new_row])], ignore_index=True).to_csv(FILE_DATA, index=False)
                 st.success(f"✅ Enregistré : {nom_version}")
                 time.sleep(1)
                 st.session_state.page = "MAIN_APP"
@@ -1000,7 +718,7 @@ elif st.session_state.page == "RESULTATS":
         if st.button("⬅️ RETOUR"):
             st.session_state.page = "MAIN_APP"
             st.rerun()
-# --- 12. PAGE : VIEW BASE (ACCÈS COMPLET AUX DONNÉES) ---
+# --- 11. PAGE : VIEW BASE (ACCÈS COMPLET AUX DONNÉES) ---
 elif st.session_state.page == "VIEW_BASE":
     with st.container(border=True):
         st.title("🔓 GESTION DE L'HISTORIQUE")
@@ -1032,7 +750,7 @@ elif st.session_state.page == "VIEW_BASE":
             st.session_state.page = "MAIN_APP"
             st.rerun()
 
-# --- 13. PAGE : PROGRESSION (TRI PRÉCIS DATE + HEURE) ---
+# --- 12. PAGE : PROGRESSION (TRI PRÉCIS DATE + HEURE) ---
 elif st.session_state.page == "PROGRESS":
     import time
 
@@ -1104,80 +822,68 @@ elif st.session_state.page == "PROGRESS":
                     subset=["Mois_Base", "Annee"], keep="last"
                 )
 
-                # --- 🟢 INTERFACE 1 : GRAPHIQUES ---
+               # --- 🟢 INTERFACE 1 : GRAPHIQUES (CORRIGÉ POUR DUPLICATE ERROR) ---
                 if not is_mode_2:
-                    import altair as alt
+                    import plotly.graph_objects as go
 
                     c_f1, c_f2, c_f3 = st.columns(3)
-                    type_graph = c_f1.selectbox(
-                        "Type de graphique", ["Courbe", "Barre", "Aire", "Points"]
-                    )
-                    periode = c_f2.selectbox(
-                        "Période d'analyse", ["Par Mois", "Par Année"]
-                    )
-                    step_scale = c_f3.selectbox(
-                        "Échelle (Palier)", [50, 100, 200, 500, 1000], index=4
-                    )
+                    type_graph = c_f1.selectbox("Type de graphique", ["Courbe", "Barre", "Aire", "Points"])
+                    periode = c_f2.selectbox("Période d'analyse", ["Par Mois", "Par Année"])
+                    intervalle = c_f3.selectbox("Échelle (Palier)", [50, 100, 200, 500, 1000], index=3)
 
-                    # Préparation des données (on reset l'index pour Altair)
+                    # Préparation des données sans créer de doublons de colonnes
                     if periode == "Par Année":
-                        df_plot = data_final.groupby("Annee")[["Epargne", "Total_Depenses"]].sum().reset_index()
-                        x_col = "Annee"
+                        df_plot = data_final.groupby("Annee")[["Epargne", "Total_Depenses", "Revenu"]].sum().reset_index()
+                        x_axis_label = "Annee"
                     else:
-                        df_plot = data_final.copy().reset_index()
-                        x_col = "Mois_Base"
+                        df_plot = data_final.copy()
+                        # On utilise 'Mois_Base' directement pour éviter le renommage en 'Mois'
+                        x_axis_label = "Mois_Base"
 
-                    # --- CALCUL RIGOUREUX DE L'ÉCHELLE FIXE (VOTRE LOGIQUE) ---
-                    if not df_plot.empty:
-                        val_max_absolue = df_plot[["Epargne", "Total_Depenses"]].max().max()
-                        nb_paliers = int(val_max_absolue // step_scale) + 3
-                        y_limit_fixe = nb_paliers * step_scale
-                    else:
-                        y_limit_fixe = 1000
+                    # CALCUL DE LA LIMITE STRICTE (Basée sur le maximum des données)
+                    val_max = float(df_plot[["Epargne", "Total_Depenses", "Revenu"]].max().max())
+                    y_limit_fixe = ((val_max // intervalle) + 2) * intervalle
 
                     st.write(f"### Évolution de l'Épargne ({periode})")
-
-                    # Création du graphique principal avec l'axe Y bloqué à y_limit_fixe
-                    base = alt.Chart(df_plot).encode(
-                        x=alt.X(f"{x_col}:N", title=periode)
-                    )
-
-                    if type_graph == "Courbe":
-                        chart = base.mark_line(color="#2e7d32", point=True)
-                    elif type_graph == "Barre":
-                        chart = base.mark_bar(color="#2e7d32")
+                    
+                    fig1 = go.Figure()
+                    color_epargne = "#2e7d32"
+                    
+                    if type_graph == "Barre":
+                        fig1.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Epargne"], marker_color=color_epargne, name="Épargne"))
                     elif type_graph == "Aire":
-                        chart = base.mark_area(color="#2e7d32", opacity=0.5)
-                    else:
-                        chart = base.mark_point(color="#2e7d32", size=80)
+                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], fill='tozeroy', line=dict(color=color_epargne), name="Épargne"))
+                    elif type_graph == "Points":
+                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], mode='markers', marker=dict(size=12, color=color_epargne), name="Épargne"))
+                    else: # Courbe
+                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], mode='lines+markers', line=dict(color=color_epargne, width=3), name="Épargne"))
 
-                    # Application de l'échelle fixe de 0 à y_limit_fixe
-                    final_chart = chart.encode(
-                        y=alt.Y("Epargne:Q", scale=alt.Scale(domain=[0, y_limit_fixe]), title="Montant $")
-                    ).properties(height=400)
-
-                    st.altair_chart(final_chart, use_container_width=True)
+                    fig1.update_layout(
+                        yaxis=dict(range=[0, y_limit_fixe], dtick=intervalle, title="Montant $"),
+                        margin=dict(l=50, r=20, t=20, b=20),
+                        height=400
+                    )
+                    st.plotly_chart(fig1, use_container_width=True)
 
                     st.write("### Comparaison Épargne vs Dépenses")
+                    fig2 = go.Figure()
+                    fig2.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Total_Depenses"], name="Dépenses", marker_color="#64B5F6"))
+                    fig2.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Epargne"], name="Épargne", marker_color="#1976D2"))
                     
-                    # Graphique de comparaison groupé (fixe également)
-                    comp_df = df_plot.melt(id_vars=[x_col], value_vars=["Epargne", "Total_Depenses"])
-                    
-                    comp_chart = alt.Chart(comp_df).mark_bar().encode(
-                        x=alt.X("variable:N", title=None),
-                        y=alt.Y("value:Q", scale=alt.Scale(domain=[0, y_limit_fixe]), title="Montant $"),
-                        color=alt.Color("variable:N", scale=alt.Scale(range=["#2e7d32", "#1976d2"])),
-                        column=alt.Column(f"{x_col}:N", title=periode)
-                    ).properties(width=80, height=300)
-
-                    st.altair_chart(comp_chart)
-                    
+                    fig2.update_layout(
+                        barmode='group',
+                        yaxis=dict(range=[0, y_limit_fixe], dtick=intervalle, title="Montant $"),
+                        height=400,
+                        margin=dict(l=50, r=20, t=20, b=20)
+                    )
+                    st.plotly_chart(fig2, use_container_width=True)
                     st.write("---")
 
                     if st.button("🔒 VERROUILLER ET QUITTER", use_container_width=True):
                         st.session_state.prog_access_granted = False
                         st.session_state.page = "MAIN_APP"
                         st.rerun()
+
                 # --- 🟠 INTERFACE 2 : GESTION DES DÉPENSES ---
                 else:
                     total_ep_cumulee = data_final["Epargne"].astype(float).sum()
@@ -1335,7 +1041,7 @@ elif st.session_state.page == "PROGRESS":
                         st.info("Aucun retrait effectué.")
             else:
                 st.warning("Données insuffisantes.")
-# --- 14. PAGE : VERIF USER ADM ---
+# --- 13. PAGE : VERIF USER ADM ---
 elif st.session_state.page == "VERIF_USER_ADM":
     with st.container(border=True):
         st.subheader("Accès Modification Profil")
@@ -1355,7 +1061,7 @@ elif st.session_state.page == "VERIF_USER_ADM":
             st.session_state.page = "ACCEUIL"
             st.rerun()
 
-# --- 15. PAGE : EDIT PROFIL ---
+# --- 14. PAGE : EDIT PROFIL ---
 elif st.session_state.page == "EDIT_PROFIL":
     with st.container(border=True):
         st.title("✏️ MODIFICATION DES CODES")
