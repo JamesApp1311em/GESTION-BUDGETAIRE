@@ -14,7 +14,6 @@ st.set_page_config(
 )
 
 # --- 2. INITIALISATION DU SESSION STATE ---
-# Correction : Ajout des indentations de 4 espaces après chaque 'if'
 if "page" not in st.session_state:
     st.session_state.page = "ACCEUIL"
 
@@ -82,7 +81,6 @@ FILE_CLIENTS = "clients.csv"
 FILE_DATA = "historique_complet.csv"
 
 def init_db():
-    # Correction : Indentation à l'intérieur de la fonction
     if not os.path.exists(FILE_CLIENTS) or os.stat(FILE_CLIENTS).st_size == 0:
         columns_clients = [
             "name",
@@ -112,7 +110,6 @@ def init_db():
         ]
         pd.DataFrame(columns=columns_data).to_csv(FILE_DATA, index=False)
 
-# Appel de la fonction
 init_db()
 
 # --- 5. FONCTIONS TECHNIQUES ---
@@ -205,8 +202,8 @@ def create_pdf(row):
         1,
         "R",
     )
-    # ... après le pied de page ...
-    # On convertit explicitement en bytes pour Streamlit
+
+    # --- CORRECTION DE L'ALIGNEMENT DES LIGNES CI-DESSOUS ---
     pdf_output = pdf.output(dest='S')
     if isinstance(pdf_output, str):
         return pdf_output.encode('latin-1')
