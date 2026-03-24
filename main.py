@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import time
+import plotly.graph_objects as go  # 🟢 AJOUTÉ : Pour les graphiques avec échelle fixe
 from fpdf import FPDF
 import datetime
 
