@@ -1,4 +1,3 @@
-Ini, TOML
 [project]
 name = "gestion-budgetaire"
 version = "0.1.0"
