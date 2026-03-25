@@ -1,7 +1,6 @@
 [project]
-name = "gestion-budgetaire"
+# On ne met pas de nom ici pour éviter le conflit de majuscules
 version = "0.1.0"
-description = "Mon application de gestion"
 dependencies = [
     "streamlit",
     "pandas",
@@ -11,5 +10,6 @@ dependencies = [
     "altair"
 ]
 
-[tool.setuptools]
-packages = []
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
