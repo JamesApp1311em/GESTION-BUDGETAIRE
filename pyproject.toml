@@ -10,6 +10,5 @@ dependencies = [
     "altair"
 ]
 
-[build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+[tool.setuptools]
+packages = []  # <--- CETTE LIGNE DIT : "IL N'Y A PAS DE ROOT PACKAGE"
