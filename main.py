@@ -5,6 +5,8 @@ import time
 import plotly.graph_objects as go  # 🟢 AJOUTÉ : Pour les graphiques avec échelle fixe
 from fpdf import FPDF
 import datetime
+import zipfile
+from io import BytesIO
 
 # --- 1. CONFIGURATION DE LA PAGE (DOIT ÊTRE EN PREMIER) ---
 st.set_page_config(
@@ -16,6 +18,10 @@ st.set_page_config(
 # --- 2. INITIALISATION DU SESSION STATE ---
 if "page" not in st.session_state:
     st.session_state.page = "ACCEUIL"
+
+# Vérification du mode maintenance (Verrouillage global)
+FILE_MAINTENANCE = "maintenance.txt"
+is_maintenance = os.path.exists(FILE_MAINTENANCE)
 
 if "inputs_locked" not in st.session_state:
     st.session_state.inputs_locked = True
@@ -227,14 +233,18 @@ if st.session_state.confirm_exit:
 
 # --- 5. PAGE : ACCEUIL ---
 elif st.session_state.page == "ACCEUIL":
+    # --- BLOCAGE MAINTENANCE ---
+    if is_maintenance:
+        st.error("🚨 L'APPLICATION EST SOUS MAINTENANCE VEUILLEZ PATIENTER S'IL VOUS PLAIT")
+    
     with st.container(border=True):
         st.markdown(
             "<h1 class='main-title'>🔐 ACCÈS AU SYSTÈME</h1>", unsafe_allow_html=True
         )
-        u_n = st.text_input("USER NAME", placeholder="Entrez votre nom...")
-        u_p = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password")
+        u_n = st.text_input("USER NAME", placeholder="Entrez votre nom...", disabled=is_maintenance)
+        u_p = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password", disabled=is_maintenance)
 
-        if st.button("🚀 OPEN APP", use_container_width=True):
+        if st.button("🚀 OPEN APP", use_container_width=True, disabled=is_maintenance):
             df = pd.read_csv(FILE_CLIENTS, dtype=str).fillna("")
             user_match = df[df["name"].str.strip() == str(u_n).strip()]
 
@@ -262,20 +272,33 @@ elif st.session_state.page == "ACCEUIL":
         st.write("---")
         st.write("### Autres options d'accès")
         col_nav1, col_nav2, col_nav3 = st.columns(3)
-        if col_nav1.button("🔑 LOGIN", use_container_width=True):
+        if col_nav1.button("🔑 LOGIN", use_container_width=True, disabled=is_maintenance):
             st.session_state.page = "LOGIN"
             st.rerun()
-        if col_nav2.button("🛡️ APP ADM", use_container_width=True):
+        if col_nav2.button("🛡️ APP ADM", use_container_width=True): # Toujours actif pour l'admin
             st.session_state.page = "VERIF_ADM"
             st.rerun()
-        if col_nav3.button("👤 USER ADM", use_container_width=True):
+        if col_nav3.button("👤 USER ADM", use_container_width=True, disabled=is_maintenance):
             st.session_state.page = "VERIF_USER_ADM"
             st.rerun()
+
+    # Message de fin de maintenance si le fichier vient d'être supprimé (optionnel)
+    if "just_restored" in st.session_state and st.session_state.just_restored:
+        st.balloons()
+        st.success("✅ Merci de Votre Patience, Une mise à jour a été effectuée et l'application peut être réutilisée de nouveau")
+        st.session_state.just_restored = False
 
     st.write("---")
 
 # --- 6. PAGE : LOGIN (CRÉATION DE COMPTE) ---
 elif st.session_state.page == "LOGIN":
+    if is_maintenance:
+        st.error("🚨 MAINTENANCE EN COURS")
+        if st.button("RETOUR"):
+            st.session_state.page = "ACCEUIL"
+            st.rerun()
+        st.stop()
+
     with st.container(border=True):
         st.markdown(
             "<h2 style='text-align: center;'>⚙️ CRÉATION DE NOUVEAU COMPTE</h2>",
@@ -342,7 +365,8 @@ elif st.session_state.page == "APP_ADM":
         )
         st.write("Gestion des comptes utilisateurs et accès système.")
 
-        col_ext, col_dev = st.columns(2)
+        # --- AJOUT DES BOUTONS EXPORT ET IMPORT ---
+        col_ext, col_dev, col_exp, col_imp = st.columns(4)
 
         with col_ext:
             if st.button("📂 EXTEND", use_container_width=True):
@@ -359,6 +383,42 @@ elif st.session_state.page == "APP_ADM":
             if st.button(label_dev, use_container_width=True):
                 st.session_state.dev_mode = not st.session_state.get("dev_mode", False)
                 st.rerun()
+
+        with col_exp:
+            # Fonction pour créer le ZIP
+            def get_all_data_zip():
+                buf = BytesIO()
+                with zipfile.ZipFile(buf, "w") as z:
+                    for f in [FILE_CLIENTS, FILE_DATA]:
+                        if os.path.exists(f):
+                            z.write(f)
+                return buf.getvalue()
+
+            if st.download_button(
+                label="📥 Export",
+                data=get_all_data_zip(),
+                file_name=f"Backup_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip",
+                mime="application/zip",
+                use_container_width=True
+            ):
+                # Création du verrou de maintenance
+                with open(FILE_MAINTENANCE, "w") as f:
+                    f.write("MAINTENANCE_ACTIVE")
+                st.session_state.page = "ACCEUIL"
+                st.rerun()
+
+        with col_imp:
+            uploaded_backup = st.file_uploader("Upload", type="zip", label_visibility="collapsed")
+            if uploaded_backup:
+                if st.button("📤 Import", use_container_width=True):
+                    with zipfile.ZipFile(uploaded_backup, 'r') as z:
+                        z.extractall('.')
+                    # Suppression du verrou de maintenance
+                    if os.path.exists(FILE_MAINTENANCE):
+                        os.remove(FILE_MAINTENANCE)
+                    st.session_state.just_restored = True
+                    st.session_state.page = "ACCEUIL"
+                    st.rerun()
 
         if st.session_state.get("show_extend_table"):
             st.write("### Base de données complète des utilisateurs")
