@@ -506,18 +506,8 @@ elif st.session_state.page == "MAIN_APP":
             if st.session_state.get("show_date_picker"):
                 with st.container(border=True):
                     m_list = [
-                        "Janvier",
-                        "Février",
-                        "Mars",
-                        "Avril",
-                        "Mai",
-                        "Juin",
-                        "Juillet",
-                        "Août",
-                        "Septembre",
-                        "Octobre",
-                        "Novembre",
-                        "Décembre",
+                        "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+                        "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
                     ]
                     m_c = st.selectbox("Mois", m_list)
                     a_c = st.selectbox("Année", [str(a) for a in range(2024, 2100)])
@@ -533,65 +523,42 @@ elif st.session_state.page == "MAIN_APP":
                         )
 
                     if st.button("✅ CONSULTER / CRÉER NOUVEAU"):
-                        st.session_state.update(
-                            {
-                                "sel_mois_base": m_c,
-                                "sel_annee": a_c,
-                                "show_date_picker": False,
-                                "show_menu": False,
-                            }
-                        )
+                        st.session_state.update({
+                            "sel_mois_base": m_c,
+                            "sel_annee": a_c,
+                            "show_date_picker": False,
+                            "show_menu": False,
+                        })
                         if not versions.empty:
-                            v_to_load = (
-                                v_choisie
-                                if "v_choisie" in locals()
-                                else versions["Mois"].iloc[0]
-                            )
+                            v_to_load = v_choisie if "v_choisie" in locals() else versions["Mois"].iloc[0]
                             target = versions[versions["Mois"] == v_to_load].iloc[0]
-                            st.session_state.update(
-                                {
-                                    "sel_mois_affiche": target["Mois"],
-                                    "n_rev": target["Revenu"],
-                                    "n_loy": target["Loyer"],
-                                    "n_sco": target["Scolarite"],
-                                    "n_rat": target["Ration"],
-                                    "n_det": target["Dette"],
-                                    "n_poc": target["Poche"],
-                                    "n_ast": target["Assistance"],
-                                    "n_aut": target["Autres"],
-                                    "inputs_locked": True,
-                                }
-                            )
+                            st.session_state.update({
+                                "sel_mois_affiche": target["Mois"],
+                                "n_rev": target["Revenu"],
+                                "n_loy": target["Loyer"],
+                                "n_sco": target["Scolarite"],
+                                "n_rat": target["Ration"],
+                                "n_det": target["Dette"],
+                                "n_poc": target["Poche"],
+                                "n_ast": target["Assistance"],
+                                "n_aut": target["Autres"],
+                                "inputs_locked": True,
+                            })
                         else:
-                            st.session_state.update(
-                                {"sel_mois_affiche": m_c, "inputs_locked": False}
-                            )
-                            for k in [
-                                "n_rev",
-                                "n_loy",
-                                "n_sco",
-                                "n_rat",
-                                "n_det",
-                                "n_poc",
-                                "n_ast",
-                                "n_aut",
-                            ]:
+                            st.session_state.update({"sel_mois_affiche": m_c, "inputs_locked": False})
+                            for k in ["n_rev", "n_loy", "n_sco", "n_rat", "n_det", "n_poc", "n_ast", "n_aut"]:
                                 st.session_state[k] = 0
                         st.rerun()
 
         # --- COLONNE 2 : PRINT SÉCURISÉ ---
         with col2:
             if st.button("🖨️ PRINT (BULLETIN)", use_container_width=True):
-                st.session_state.show_print_pwd = not st.session_state.get(
-                    "show_print_pwd", False
-                )
+                st.session_state.show_print_pwd = not st.session_state.get("show_print_pwd", False)
                 st.session_state.show_print_ui = False
 
             if st.session_state.get("show_print_pwd"):
                 with st.container(border=True):
-                    p_print = st.text_input(
-                        "Code Print requis", type="password", key="p_print"
-                    )
+                    p_print = st.text_input("Code Print requis", type="password", key="p_print")
                     if st.button("🔓 VALIDER PRINT"):
                         if p_print == st.session_state.get("user_pw_adm_extra"):
                             st.session_state.show_print_ui = True
@@ -603,20 +570,12 @@ elif st.session_state.page == "MAIN_APP":
             if st.session_state.get("show_print_ui"):
                 with st.container(border=True):
                     if not user_recs.empty:
-                        list_mois = user_recs.sort_values(
-                            "Date_Enregistrement", ascending=False
-                        )["Mois"].tolist()
-                        choix_pdf = st.selectbox(
-                            "Choisir la version à imprimer", list_mois
-                        )
+                        list_mois = user_recs.sort_values("Date_Enregistrement", ascending=False)["Mois"].tolist()
+                        choix_pdf = st.selectbox("Choisir la version à imprimer", list_mois)
 
                         if choix_pdf:
-                            row_selected = user_recs[
-                                user_recs["Mois"] == choix_pdf
-                            ].iloc[0]
-
+                            row_selected = user_recs[user_recs["Mois"] == choix_pdf].iloc[0]
                             pdf_bytes = create_pdf(row_selected)
-
                             st.download_button(
                                 label="📥 Télécharger PDF",
                                 data=pdf_bytes,
@@ -629,15 +588,11 @@ elif st.session_state.page == "MAIN_APP":
         c_adm, c_prog = st.columns(2)
         with c_adm:
             if st.button("🛡️ ADMIN DATA", use_container_width=True):
-                st.session_state.show_admin_pwd = not st.session_state.get(
-                    "show_admin_pwd", False
-                )
+                st.session_state.show_admin_pwd = not st.session_state.get("show_admin_pwd", False)
 
             if st.session_state.get("show_admin_pwd"):
                 with st.container(border=True):
-                    p_admin = st.text_input(
-                        "Code Admin requis", type="password", key="p_admin"
-                    )
+                    p_admin = st.text_input("Code Admin requis", type="password", key="p_admin")
                     if st.button("🔓 ACCÉDER À LA BASE"):
                         if p_admin == st.session_state.get("user_pw_adm_extra"):
                             st.session_state.page = "VIEW_BASE"
@@ -652,6 +607,7 @@ elif st.session_state.page == "MAIN_APP":
 
     else:
         # --- INTERFACE 2 : LE BULLETIN DE DÉPENSES ---
+        # TOUT CE BLOC EST MAINTENANT INDENTÉ SOUS LE ELSE
         with st.container(border=True):
             st.markdown(
                 "<h1 style='text-align: center; color: #2E7D32;'>💰 BULLETIN DES DEPENSES</h1>",
@@ -659,113 +615,79 @@ elif st.session_state.page == "MAIN_APP":
             )
 
             sel_m_base = st.session_state.get("sel_mois_base")
-            L = st.session_state.get("inputs_locked", False)
+            L = st.session_state.get("inputs_locked", True)
 
             if sel_m_base and L:
                 versions_du_mois = user_recs[
                     (user_recs["Mois"].str.startswith(sel_m_base))
-                    & (
-                        user_recs["Annee"].astype(str)
-                        == st.session_state.get("sel_annee")
-                    )
+                    & (user_recs["Annee"].astype(str) == st.session_state.get("sel_annee"))
                 ]
-                if not versions_du_mois.empty:
 
-                    def ext_v(n):
-                        return int(n.split("Mod")[-1]) if "Mod" in n else 0
+                def ext_v(n):
+                    return int(n.split("Mod")[-1]) if "Mod" in n else 0
 
+                show_modify_button = False
+                
+                if versions_du_mois.empty:
+                    show_modify_button = True
+                    btn_label = "📝 SAISIR LES DONNÉES"
+                else:
                     max_v = versions_du_mois["Mois"].apply(ext_v).max()
                     cur_v = ext_v(st.session_state.get("sel_mois_affiche", ""))
-
+                    
                     if cur_v == max_v:
-                        if st.button(
-                            "📝 MODIFIER LA DERNIÈRE VERSION", use_container_width=True
-                        ):
-                            st.session_state.ask_lock_pwd = True
-
-                        if st.session_state.get("ask_lock_pwd"):
-                            with st.container(border=True):
-                                pwd_bulletin = st.text_input(
-                                    "Entrez le PASSWORD (MODIFY)", type="password"
-                                )
-                                if st.button("🔓 DÉVERROUILLER"):
-                                    if pwd_bulletin == st.session_state.get(
-                                        "user_pw_open"
-                                    ):
-                                        st.session_state.inputs_locked = False
-                                        st.session_state.ask_lock_pwd = False
-                                        st.success("Accès autorisé")
-                                        st.rerun()
-                                    else:
-                                        st.error("Mot de passe incorrect.")
+                        show_modify_button = True
+                        btn_label = "📝 MODIFIER LA DERNIÈRE VERSION"
                     else:
                         st.warning(f"⚠️ Lecture seule : Version Mod {max_v} disponible.")
-            else:
-                if st.button("📝 MODIFIER LES DONNÉES", use_container_width=True):
-                    st.session_state.inputs_locked = False
-                    st.rerun()
+
+                if show_modify_button:
+                    if st.button(btn_label, key="btn_mod_unique", use_container_width=True):
+                        st.session_state.ask_lock_pwd = True
+
+                    if st.session_state.get("ask_lock_pwd"):
+                        with st.container(border=True):
+                            pwd_bulletin = st.text_input(
+                                "Entrez le PASSWORD (MODIFY)", type="password", key="pwd_mod_field"
+                            )
+                            if st.button("🔓 DÉVERROUILLER", key="btn_unlock_final"):
+                                if pwd_bulletin == st.session_state.get("user_pw_open"):
+                                    st.session_state.inputs_locked = False
+                                    st.session_state.ask_lock_pwd = False
+                                    st.success("Accès autorisé")
+                                    st.rerun()
+                                else:
+                                    st.error("Mot de passe incorrect.")
 
             # --- AFFICHAGE DES CHAMPS ---
             col_m, col_a = st.columns(2)
-            col_m.text_input(
-                "MOIS EN COURS",
-                value=st.session_state.get("sel_mois_affiche", ""),
-                disabled=True,
-            )
-            col_a.text_input(
-                "ANNÉE", value=st.session_state.get("sel_annee", ""), disabled=True
-            )
+            col_m.text_input("MOIS EN COURS", value=st.session_state.get("sel_mois_affiche", ""), disabled=True, key="disp_m")
+            col_a.text_input("ANNÉE", value=st.session_state.get("sel_annee", ""), disabled=True, key="disp_a")
 
-            st.session_state.n_rev = st.number_input(
-                "REVENU GLOBAL ($)",
-                value=int(st.session_state.get("n_rev", 0)),
-                disabled=L,
-            )
+            st.session_state.n_rev = st.number_input("REVENU GLOBAL ($)", value=int(st.session_state.get("n_rev", 0)), disabled=L)
 
             c1, c2 = st.columns(2)
-            st.session_state.n_loy = c1.number_input(
-                "LOYER", value=int(st.session_state.get("n_loy", 0)), disabled=L
-            )
-            st.session_state.n_sco = c1.number_input(
-                "SCOLARITÉ", value=int(st.session_state.get("n_sco", 0)), disabled=L
-            )
-            st.session_state.n_rat = c1.number_input(
-                "RATION", value=int(st.session_state.get("n_rat", 0)), disabled=L
-            )
-            st.session_state.n_det = c2.number_input(
-                "DETTES", value=int(st.session_state.get("n_det", 0)), disabled=L
-            )
-            st.session_state.n_poc = c2.number_input(
-                "POCHE", value=int(st.session_state.get("n_poc", 0)), disabled=L
-            )
-            st.session_state.n_ast = c2.number_input(
-                "ASSISTANCE", value=int(st.session_state.get("n_ast", 0)), disabled=L
-            )
-            st.session_state.n_aut = st.number_input(
-                "AUTRES", value=int(st.session_state.get("n_aut", 0)), disabled=L
-            )
+            st.session_state.n_loy = c1.number_input("LOYER", value=int(st.session_state.get("n_loy", 0)), disabled=L)
+            st.session_state.n_sco = c1.number_input("SCOLARITÉ", value=int(st.session_state.get("n_sco", 0)), disabled=L)
+            st.session_state.n_rat = c1.number_input("RATION", value=int(st.session_state.get("n_rat", 0)), disabled=L)
+            st.session_state.n_det = c2.number_input("DETTES", value=int(st.session_state.get("n_det", 0)), disabled=L)
+            st.session_state.n_poc = c2.number_input("POCHE", value=int(st.session_state.get("n_poc", 0)), disabled=L)
+            st.session_state.n_ast = c2.number_input("ASSISTANCE", value=int(st.session_state.get("n_ast", 0)), disabled=L)
+            st.session_state.n_aut = st.number_input("AUTRES", value=int(st.session_state.get("n_aut", 0)), disabled=L)
 
             if st.button("🚀 CALCULER", use_container_width=True, type="primary"):
                 if not st.session_state.get("sel_mois_base"):
                     st.warning("Sélectionnez d'abord un mois dans le MENU.")
                 else:
-                    st.session_state.total_dep = sum(
-                        [
-                            st.session_state.n_loy,
-                            st.session_state.n_sco,
-                            st.session_state.n_rat,
-                            st.session_state.n_det,
-                            st.session_state.n_poc,
-                            st.session_state.n_ast,
-                            st.session_state.n_aut,
-                        ]
-                    )
-                    st.session_state.epargne = (
-                        st.session_state.n_rev - st.session_state.total_dep
-                    )
+                    st.session_state.total_dep = sum([
+                        st.session_state.n_loy, st.session_state.n_sco,
+                        st.session_state.n_rat, st.session_state.n_det,
+                        st.session_state.n_poc, st.session_state.n_ast,
+                        st.session_state.n_aut,
+                    ])
+                    st.session_state.epargne = st.session_state.n_rev - st.session_state.total_dep
                     st.session_state.page = "RESULTATS"
                     st.rerun()
-
 # --- 10. PAGE : RÉSULTATS ---
 elif st.session_state.page == "RESULTATS":
     with st.container(border=True):
