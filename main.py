@@ -10,9 +10,9 @@ from io import BytesIO
 
 # --- 1. CONFIGURATION DE LA PAGE (DOIT ÊTRE EN PREMIER) ---
 st.set_page_config(
-    page_title="Gestionnaire de Dépenses",
-    layout="centered",
-    initial_sidebar_state="expanded",
+    page_title="Gestion Budgétaire",
+    page_icon="favicon.png",
+    layout="centered"
 )
 
 # --- 2. INITIALISATION DU SESSION STATE ---
@@ -245,6 +245,8 @@ elif st.session_state.page == "ACCEUIL":
         st.error("🚨 L'APPLICATION EST SOUS MAINTENANCE VEUILLEZ PATIENTER S'IL VOUS PLAIT")
     
     with st.container(border=True):
+        # 🟢 ON AJOUTE LE LOGO ICI (CENTRÉ)
+        st.image("logo.png", use_container_width=True)
         st.markdown(
             "<h1 class='main-title'>🔐 ACCÈS AU SYSTÈME</h1>", unsafe_allow_html=True
         )
