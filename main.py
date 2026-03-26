@@ -85,6 +85,7 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 # --- 4. INITIALISATION DES BASES DE DONNÉES ---
 FILE_CLIENTS = "clients.csv"
 FILE_DATA = "historique_complet.csv"
+FILE_DEP_EPARGNE = "depenses_epargne.csv"  # 🟢 CORRECTION : Déclaration globale
 
 
 def init_db():
@@ -116,6 +117,12 @@ def init_db():
             "Date_Enregistrement",
         ]
         pd.DataFrame(columns=columns_data).to_csv(FILE_DATA, index=False)
+    
+    # 🟢 Initialisation du fichier des retraits si inexistant
+    if not os.path.exists(FILE_DEP_EPARGNE):
+        pd.DataFrame(columns=["ID", "Utilisateur", "Raison", "Montant", "Date"]).to_csv(
+            FILE_DEP_EPARGNE, index=False
+        )
 
 
 init_db()
@@ -282,7 +289,7 @@ elif st.session_state.page == "ACCEUIL":
             st.session_state.page = "VERIF_USER_ADM"
             st.rerun()
 
-    # Message de fin de maintenance
+    # Message de fin de maintenance si le fichier vient d'être supprimé (optionnel)
     if "just_restored" in st.session_state and st.session_state.just_restored:
         st.balloons()
         st.success("✅ Merci de Votre Patience, Une mise à jour a été effectuée et l'application peut être réutilisée de nouveau")
@@ -365,6 +372,7 @@ elif st.session_state.page == "APP_ADM":
         )
         st.write("Gestion des comptes utilisateurs et accès système.")
 
+        # --- AJOUT DES BOUTONS EXPORT ET IMPORT ---
         col_ext, col_dev, col_exp, col_imp = st.columns(4)
 
         with col_ext:
@@ -384,19 +392,20 @@ elif st.session_state.page == "APP_ADM":
                 st.rerun()
 
         with col_exp:
-            # --- CORRECTION ICI : SAUVEGARDE TOUS LES CSV ---
+            # Fonction pour créer le ZIP (Modifiée pour inclure les retraits)
             def get_all_data_zip():
                 buf = BytesIO()
                 with zipfile.ZipFile(buf, "w") as z:
-                    for f in os.listdir('.'):
-                        if f.endswith('.csv'): # Prend TOUS les fichiers de données
+                    # On ajoute FILE_DEP_EPARGNE à la liste des fichiers à sauvegarder
+                    for f in [FILE_CLIENTS, FILE_DATA, FILE_DEP_EPARGNE]:
+                        if os.path.exists(f):
                             z.write(f)
                 return buf.getvalue()
 
             if st.download_button(
                 label="📥 Export",
                 data=get_all_data_zip(),
-                file_name=f"Backup_Complete_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip",
+                file_name=f"Backup_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip",
                 mime="application/zip",
                 use_container_width=True
             ):
@@ -449,10 +458,313 @@ elif st.session_state.page == "APP_ADM":
                 if c3.button("🗑️", key=f"btn_del_{idx}"):
                     df_adm.drop(idx).to_csv(FILE_CLIENTS, index=False)
                     st.rerun()
-
         if st.button("⬅️ QUITTER L'ADMINISTRATION", use_container_width=True):
             st.session_state.page = "ACCEUIL"
             st.rerun()
+# --- 9. PAGE : MAIN APP (APPLICATION PRINCIPALE) ---
+elif st.session_state.page == "MAIN_APP":
+    # Correction : Ces lignes doivent être indentées pour appartenir au elif
+    df_h = pd.read_csv(FILE_DATA)
+    user_recs = df_h[df_h["Utilisateur"] == st.session_state.current_user].copy()
+
+    # --- BOUTON DE CONTRÔLE (MENU / RETOUR / DÉCONNEXION) ---
+    if not st.session_state.show_menu:
+        col_nav1, col_nav2 = st.columns([0.7, 0.3])
+        with col_nav1:
+            if st.button("➡️ OUVRIR LE MENU", use_container_width=True):
+                st.session_state.show_menu = True
+                st.rerun()
+        with col_nav2:
+            if st.button("🟦 DÉCONNEXION", use_container_width=True):
+                st.session_state.clear()
+                st.rerun()
+    else:
+        if st.button("⬅️ RETOUR AU BULLETIN", use_container_width=True):
+            st.session_state.show_menu = False
+            st.session_state.show_print_pwd = False
+            st.session_state.show_admin_pwd = False
+            st.rerun()
+
+    st.write("---")
+
+    # --- LOGIQUE D'AFFICHAGE EXCLUSIF ---
+    if st.session_state.show_menu:
+        st.markdown(
+            "<h2 style='color: #1E88E5; text-align: center;'>📋 MENU DE GESTION</h2>",
+            unsafe_allow_html=True,
+        )
+
+        col1, col2 = st.columns(2)
+
+        # --- COLONNE 1 : SÉLECTION DU MOIS ---
+        with col1:
+            if st.button("📅 SELECT MONTH", use_container_width=True):
+                st.session_state.show_date_picker = not st.session_state.get(
+                    "show_date_picker", False
+                )
+
+            if st.session_state.get("show_date_picker"):
+                with st.container(border=True):
+                    m_list = [
+                        "Janvier",
+                        "Février",
+                        "Mars",
+                        "Avril",
+                        "Mai",
+                        "Juin",
+                        "Juillet",
+                        "Août",
+                        "Septembre",
+                        "Octobre",
+                        "Novembre",
+                        "Décembre",
+                    ]
+                    m_c = st.selectbox("Mois", m_list)
+                    a_c = st.selectbox("Année", [str(a) for a in range(2024, 2100)])
+
+                    versions = user_recs[
+                        (user_recs["Mois"].str.startswith(m_c))
+                        & (user_recs["Annee"].astype(str) == a_c)
+                    ]
+
+                    if not versions.empty:
+                        v_choisie = st.selectbox(
+                            "Versions existantes", versions["Mois"].tolist()
+                        )
+
+                    if st.button("✅ CONSULTER / CRÉER NOUVEAU"):
+                        st.session_state.update(
+                            {
+                                "sel_mois_base": m_c,
+                                "sel_annee": a_c,
+                                "show_date_picker": False,
+                                "show_menu": False,
+                            }
+                        )
+                        if not versions.empty:
+                            v_to_load = (
+                                v_choisie
+                                if "v_choisie" in locals()
+                                else versions["Mois"].iloc[0]
+                            )
+                            target = versions[versions["Mois"] == v_to_load].iloc[0]
+                            st.session_state.update(
+                                {
+                                    "sel_mois_affiche": target["Mois"],
+                                    "n_rev": target["Revenu"],
+                                    "n_loy": target["Loyer"],
+                                    "n_sco": target["Scolarite"],
+                                    "n_rat": target["Ration"],
+                                    "n_det": target["Dette"],
+                                    "n_poc": target["Poche"],
+                                    "n_ast": target["Assistance"],
+                                    "n_aut": target["Autres"],
+                                    "inputs_locked": True,
+                                }
+                            )
+                        else:
+                            st.session_state.update(
+                                {"sel_mois_affiche": m_c, "inputs_locked": False}
+                            )
+                            for k in [
+                                "n_rev",
+                                "n_loy",
+                                "n_sco",
+                                "n_rat",
+                                "n_det",
+                                "n_poc",
+                                "n_ast",
+                                "n_aut",
+                            ]:
+                                st.session_state[k] = 0
+                        st.rerun()
+
+        # --- COLONNE 2 : PRINT SÉCURISÉ ---
+        with col2:
+            if st.button("🖨️ PRINT (BULLETIN)", use_container_width=True):
+                st.session_state.show_print_pwd = not st.session_state.get(
+                    "show_print_pwd", False
+                )
+                st.session_state.show_print_ui = False
+
+            if st.session_state.get("show_print_pwd"):
+                with st.container(border=True):
+                    p_print = st.text_input(
+                        "Code Print requis", type="password", key="p_print"
+                    )
+                    if st.button("🔓 VALIDER PRINT"):
+                        if p_print == st.session_state.get("user_pw_adm_extra"):
+                            st.session_state.show_print_ui = True
+                            st.session_state.show_print_pwd = False
+                            st.rerun()
+                        else:
+                            st.error("Code incorrect")
+
+            if st.session_state.get("show_print_ui"):
+                with st.container(border=True):
+                    if not user_recs.empty:
+                        list_mois = user_recs.sort_values(
+                            "Date_Enregistrement", ascending=False
+                        )["Mois"].tolist()
+                        choix_pdf = st.selectbox(
+                            "Choisir la version à imprimer", list_mois
+                        )
+
+                        if choix_pdf:
+                            row_selected = user_recs[
+                                user_recs["Mois"] == choix_pdf
+                            ].iloc[0]
+
+                            pdf_bytes = create_pdf(row_selected)
+
+                            st.download_button(
+                                label="📥 Télécharger PDF",
+                                data=pdf_bytes,
+                                file_name=f"Bulletin_{choix_pdf}.pdf",
+                                mime="application/pdf",
+                                use_container_width=True,
+                            )
+
+        # --- ADMIN & PROGRESSION ---
+        c_adm, c_prog = st.columns(2)
+        with c_adm:
+            if st.button("🛡️ ADMIN DATA", use_container_width=True):
+                st.session_state.show_admin_pwd = not st.session_state.get(
+                    "show_admin_pwd", False
+                )
+
+            if st.session_state.get("show_admin_pwd"):
+                with st.container(border=True):
+                    p_admin = st.text_input(
+                        "Code Admin requis", type="password", key="p_admin"
+                    )
+                    if st.button("🔓 ACCÉDER À LA BASE"):
+                        if p_admin == st.session_state.get("user_pw_adm_extra"):
+                            st.session_state.page = "VIEW_BASE"
+                            st.rerun()
+                        else:
+                            st.error("Code incorrect")
+
+        with c_prog:
+            if st.button("📈 PROGRESSION", use_container_width=True):
+                st.session_state.page = "PROGRESS"
+                st.rerun()
+
+    else:
+        # --- INTERFACE 2 : LE BULLETIN DE DÉPENSES ---
+        with st.container(border=True):
+            st.markdown(
+                "<h1 style='text-align: center; color: #2E7D32;'>💰 BULLETIN DES DEPENSES</h1>",
+                unsafe_allow_html=True,
+            )
+
+            sel_m_base = st.session_state.get("sel_mois_base")
+            L = st.session_state.get("inputs_locked", False)
+
+            if sel_m_base and L:
+                versions_du_mois = user_recs[
+                    (user_recs["Mois"].str.startswith(sel_m_base))
+                    & (
+                        user_recs["Annee"].astype(str)
+                        == st.session_state.get("sel_annee")
+                    )
+                ]
+                if not versions_du_mois.empty:
+
+                    def ext_v(n):
+                        return int(n.split("Mod")[-1]) if "Mod" in n else 0
+
+                    max_v = versions_du_mois["Mois"].apply(ext_v).max()
+                    cur_v = ext_v(st.session_state.get("sel_mois_affiche", ""))
+
+                    if cur_v == max_v:
+                        if st.button(
+                            "📝 MODIFIER LA DERNIÈRE VERSION", use_container_width=True
+                        ):
+                            st.session_state.ask_lock_pwd = True
+
+                        if st.session_state.get("ask_lock_pwd"):
+                            with st.container(border=True):
+                                pwd_bulletin = st.text_input(
+                                    "Entrez le PASSWORD (MODIFY)", type="password"
+                                )
+                                if st.button("🔓 DÉVERROUILLER"):
+                                    if pwd_bulletin == st.session_state.get(
+                                        "user_pw_open"
+                                    ):
+                                        st.session_state.inputs_locked = False
+                                        st.session_state.ask_lock_pwd = False
+                                        st.success("Accès autorisé")
+                                        st.rerun()
+                                    else:
+                                        st.error("Mot de passe incorrect.")
+                    else:
+                        st.warning(f"⚠️ Lecture seule : Version Mod {max_v} disponible.")
+            else:
+                if st.button("📝 MODIFIER LES DONNÉES", use_container_width=True):
+                    st.session_state.inputs_locked = False
+                    st.rerun()
+
+            # --- AFFICHAGE DES CHAMPS ---
+            col_m, col_a = st.columns(2)
+            col_m.text_input(
+                "MOIS EN COURS",
+                value=st.session_state.get("sel_mois_affiche", ""),
+                disabled=True,
+            )
+            col_a.text_input(
+                "ANNÉE", value=st.session_state.get("sel_annee", ""), disabled=True
+            )
+
+            st.session_state.n_rev = st.number_input(
+                "REVENU GLOBAL ($)",
+                value=int(st.session_state.get("n_rev", 0)),
+                disabled=L,
+            )
+
+            c1, c2 = st.columns(2)
+            st.session_state.n_loy = c1.number_input(
+                "LOYER", value=int(st.session_state.get("n_loy", 0)), disabled=L
+            )
+            st.session_state.n_sco = c1.number_input(
+                "SCOLARITÉ", value=int(st.session_state.get("n_sco", 0)), disabled=L
+            )
+            st.session_state.n_rat = c1.number_input(
+                "RATION", value=int(st.session_state.get("n_rat", 0)), disabled=L
+            )
+            st.session_state.n_det = c2.number_input(
+                "DETTES", value=int(st.session_state.get("n_det", 0)), disabled=L
+            )
+            st.session_state.n_poc = c2.number_input(
+                "POCHE", value=int(st.session_state.get("n_poc", 0)), disabled=L
+            )
+            st.session_state.n_ast = c2.number_input(
+                "ASSISTANCE", value=int(st.session_state.get("n_ast", 0)), disabled=L
+            )
+            st.session_state.n_aut = st.number_input(
+                "AUTRES", value=int(st.session_state.get("n_aut", 0)), disabled=L
+            )
+
+            if st.button("🚀 CALCULER", use_container_width=True, type="primary"):
+                if not st.session_state.get("sel_mois_base"):
+                    st.warning("Sélectionnez d'abord un mois dans le MENU.")
+                else:
+                    st.session_state.total_dep = sum(
+                        [
+                            st.session_state.n_loy,
+                            st.session_state.n_sco,
+                            st.session_state.n_rat,
+                            st.session_state.n_det,
+                            st.session_state.n_poc,
+                            st.session_state.n_ast,
+                            st.session_state.n_aut,
+                        ]
+                    )
+                    st.session_state.epargne = (
+                        st.session_state.n_rev - st.session_state.total_dep
+                    )
+                    st.session_state.page = "RESULTATS"
+                    st.rerun()
 
 # --- 10. PAGE : RÉSULTATS ---
 elif st.session_state.page == "RESULTATS":
@@ -693,7 +1005,7 @@ elif st.session_state.page == "PROGRESS":
                     subset=["Mois_Base", "Annee"], keep="last"
                 )
 
-                # --- 🟢 INTERFACE 1 : GRAPHIQUES (CORRIGÉ POUR DUPLICATE ERROR) ---
+                # --- 🟢 INTERFACE 1 : GRAPHIQUES ---
                 if not is_mode_2:
                     import plotly.graph_objects as go
 
@@ -708,7 +1020,7 @@ elif st.session_state.page == "PROGRESS":
                         "Échelle (Palier)", [50, 100, 200, 500, 1000], index=3
                     )
 
-                    # Préparation des données sans créer de doublons de colonnes
+                    # Préparation des données
                     if periode == "Par Année":
                         df_plot = (
                             data_final.groupby("Annee")[
@@ -720,10 +1032,9 @@ elif st.session_state.page == "PROGRESS":
                         x_axis_label = "Annee"
                     else:
                         df_plot = data_final.copy()
-                        # On utilise 'Mois_Base' directement pour éviter le renommage en 'Mois'
                         x_axis_label = "Mois_Base"
 
-                    # CALCUL DE LA LIMITE STRICTE (Basée sur le maximum des données)
+                    # CALCUL DE LA LIMITE STRICTE
                     val_max = float(
                         df_plot[["Epargne", "Total_Depenses", "Revenu"]].max().max()
                     )
@@ -735,246 +1046,107 @@ elif st.session_state.page == "PROGRESS":
                     color_epargne = "#2e7d32"
 
                     if type_graph == "Barre":
-                        fig1.add_trace(
-                            go.Bar(
-                                x=df_plot[x_axis_label],
-                                y=df_plot["Epargne"],
-                                marker_color=color_epargne,
-                                name="Épargne",
-                            )
-                        )
+                        fig1.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Epargne"], marker_color=color_epargne, name="Épargne"))
                     elif type_graph == "Aire":
-                        fig1.add_trace(
-                            go.Scatter(
-                                x=df_plot[x_axis_label],
-                                y=df_plot["Epargne"],
-                                fill="tozeroy",
-                                line=dict(color=color_epargne),
-                                name="Épargne",
-                            )
-                        )
+                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], fill="tozeroy", line=dict(color=color_epargne), name="Épargne"))
                     elif type_graph == "Points":
-                        fig1.add_trace(
-                            go.Scatter(
-                                x=df_plot[x_axis_label],
-                                y=df_plot["Epargne"],
-                                mode="markers",
-                                marker=dict(size=12, color=color_epargne),
-                                name="Épargne",
-                            )
-                        )
+                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], mode="markers", marker=dict(size=12, color=color_epargne), name="Épargne"))
                     else:  # Courbe
-                        fig1.add_trace(
-                            go.Scatter(
-                                x=df_plot[x_axis_label],
-                                y=df_plot["Epargne"],
-                                mode="lines+markers",
-                                line=dict(color=color_epargne, width=3),
-                                name="Épargne",
-                            )
-                        )
+                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], mode="lines+markers", line=dict(color=color_epargne, width=3), name="Épargne"))
 
-                    fig1.update_layout(
-                        yaxis=dict(
-                            range=[0, y_limit_fixe], dtick=intervalle, title="Montant $"
-                        ),
-                        margin=dict(l=50, r=20, t=20, b=20),
-                        height=400,
-                    )
+                    fig1.update_layout(yaxis=dict(range=[0, y_limit_fixe], dtick=intervalle, title="Montant $"), margin=dict(l=50, r=20, t=20, b=20), height=400)
                     st.plotly_chart(fig1, use_container_width=True)
 
                     st.write("### Comparaison Épargne vs Dépenses")
                     fig2 = go.Figure()
-                    fig2.add_trace(
-                        go.Bar(
-                            x=df_plot[x_axis_label],
-                            y=df_plot["Total_Depenses"],
-                            name="Dépenses",
-                            marker_color="#64B5F6",
-                        )
-                    )
-                    fig2.add_trace(
-                        go.Bar(
-                            x=df_plot[x_axis_label],
-                            y=df_plot["Epargne"],
-                            name="Épargne",
-                            marker_color="#1976D2",
-                        )
-                    )
-
-                    fig2.update_layout(
-                        barmode="group",
-                        yaxis=dict(
-                            range=[0, y_limit_fixe], dtick=intervalle, title="Montant $"
-                        ),
-                        height=400,
-                        margin=dict(l=50, r=20, t=20, b=20),
-                    )
+                    fig2.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Total_Depenses"], name="Dépenses", marker_color="#64B5F6"))
+                    fig2.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Epargne"], name="Épargne", marker_color="#1976D2"))
+                    fig2.update_layout(barmode="group", yaxis=dict(range=[0, y_limit_fixe], dtick=intervalle, title="Montant $"), height=400, margin=dict(l=50, r=20, t=20, b=20))
                     st.plotly_chart(fig2, use_container_width=True)
-                    st.write("---")
-
-                    if st.button("🔒 VERROUILLER ET QUITTER", use_container_width=True):
-                        st.session_state.prog_access_granted = False
-                        st.session_state.page = "MAIN_APP"
-                        st.rerun()
 
                 # --- 🟠 INTERFACE 2 : GESTION DES DÉPENSES ---
                 else:
                     total_ep_cumulee = data_final["Epargne"].astype(float).sum()
                     df_dep_file = pd.read_csv(FILE_DEP_EPARGNE)
-                    user_deps = df_dep_file[
-                        df_dep_file["Utilisateur"] == st.session_state.current_user
-                    ].reset_index(drop=True)
+                    user_deps = df_dep_file[df_dep_file["Utilisateur"] == st.session_state.current_user].reset_index(drop=True)
                     total_sorties = user_deps["Montant"].sum()
                     solde_actuel = total_ep_cumulee - total_sorties
 
                     c1, c2 = st.columns(2)
                     with c1:
-                        # MODIFICATION 1 : Couleur Bleu Foncé et texte Blanc
-                        st.markdown(
-                            f"""<div style="background-color:#0d47a1; color:white; padding:10px; border-radius:5px; border-left:5px solid #1565c0;">
-                            <small>TOTAL ÉPARGNE CUMULÉE</small><br><span style="font-size:20px; font-weight:bold;">{total_ep_cumulee:,.2f} $</span></div>""",
-                            unsafe_allow_html=True,
-                        )
+                        st.markdown(f"""<div style="background-color:#0d47a1; color:white; padding:10px; border-radius:5px; border-left:5px solid #1565c0;"><small>TOTAL ÉPARGNE CUMULÉE</small><br><span style="font-size:20px; font-weight:bold;">{total_ep_cumulee:,.2f} $</span></div>""", unsafe_allow_html=True)
                     with c2:
-                        # MODIFICATION 1 : Couleur Vert Foncé et texte Blanc
-                        st.markdown(
-                            f"""<div style="background-color:#1b5e20; color:white; padding:10px; border-radius:5px; border-left:5px solid #2e7d32;">
-                            <small>SOLDE ACTUEL</small><br><span style="font-size:20px; font-weight:bold;">{solde_actuel:,.2f} $</span></div>""",
-                            unsafe_allow_html=True,
-                        )
+                        st.markdown(f"""<div style="background-color:#1b5e20; color:white; padding:10px; border-radius:5px; border-left:5px solid #2e7d32;"><small>SOLDE ACTUEL</small><br><span style="font-size:20px; font-weight:bold;">{solde_actuel:,.2f} $</span></div>""", unsafe_allow_html=True)
 
                     st.write("")
-                    if st.button(
-                        "💸 ENREGISTRER UNE DÉPENSE SUR ÉPARGNE",
-                        use_container_width=True,
-                    ):
-                        st.session_state.show_f = not st.session_state.get(
-                            "show_f", False
-                        )
-                        # Réinitialiser la confirmation de suppression si on ouvre le formulaire
+                    if st.button("💸 ENREGISTRER UNE DÉPENSE SUR ÉPARGNE", use_container_width=True):
+                        st.session_state.show_f = not st.session_state.get("show_f", False)
                         st.session_state.delete_confirm_idx = None
                         st.rerun()
 
                     if st.session_state.get("show_f"):
-                        with st.form(
-                            "form_dep_epargne",
-                            clear_on_submit=st.session_state.get("form_success", False),
-                        ):
+                        # Demande 3 : clear_on_submit=True
+                        with st.form("form_dep_epargne", clear_on_submit=True):
                             st.subheader("Saisie du retrait")
-                            f_rai = st.text_input(
-                                "Raison", placeholder="Saisir le motif"
-                            )
-                            f_mon = st.number_input(
-                                "Montant ($)", min_value=0.0, step=1.0
-                            )
+                            f_rai = st.text_input("Raison", placeholder="Saisir le motif")
+                            f_mon = st.number_input("Montant ($)", min_value=0.0, step=1.0)
                             submit = st.form_submit_button("✅ CONFIRMER LE RETRAIT")
 
                             if submit:
                                 if f_rai and f_mon > 0:
                                     if f_mon > solde_actuel:
                                         st.error(f"❌ Solde insuffisant")
-                                        st.session_state.form_success = False
                                     else:
-                                        st.session_state.form_success = True
                                         new_id = int(time.time())
-                                        new_d = pd.DataFrame(
-                                            [
-                                                {
-                                                    "ID": new_id,
-                                                    "Utilisateur": st.session_state.current_user,
-                                                    "Raison": f_rai,
-                                                    "Montant": f_mon,
-                                                    "Date": pd.Timestamp.now().strftime(
-                                                        "%d/%m/%Y"
-                                                    ),
-                                                }
-                                            ]
-                                        )
-                                        pd.concat(
-                                            [df_dep_file, new_d], ignore_index=True
-                                        ).to_csv(FILE_DEP_EPARGNE, index=False)
+                                        new_d = pd.DataFrame([{"ID": new_id, "Utilisateur": st.session_state.current_user, "Raison": f_rai, "Montant": f_mon, "Date": pd.Timestamp.now().strftime("%d/%m/%Y")}])
+                                        pd.concat([df_dep_file, new_d], ignore_index=True).to_csv(FILE_DEP_EPARGNE, index=False)
                                         st.success("Retrait enregistré.")
                                         time.sleep(1)
                                         st.rerun()
                                 else:
                                     st.warning("Veuillez remplir tous les champs.")
-                                    st.session_state.form_success = False
 
                     st.write("### 📂 Historique des retraits")
                     if not user_deps.empty:
-                        list_display = [
-                            f"{i + 1}. {r['Raison']} | {r['Montant']}$ | {r['Date']}"
-                            for i, r in user_deps.iterrows()
-                        ]
-                        sel_idx = st.selectbox(
-                            "Sélectionner un retrait",
-                            range(len(list_display)),
-                            format_func=lambda x: list_display[x],
-                        )
+                        list_display = [f"{i + 1}. {r['Raison']} | {r['Montant']}$ | {r['Date']}" for i, r in user_deps.iterrows()]
+                        sel_idx = st.selectbox("Sélectionner un retrait", range(len(list_display)), format_func=lambda x: list_display[x])
 
-                        # MODIFICATION 2 : Logique de confirmation de suppression
+                        if st.button("🗑️ SUPPRIMER CE RETRAIT", use_container_width=True):
+                            st.session_state.delete_confirm_idx = sel_idx
+                            st.rerun()
 
-                        # Création de deux colonnes pour aligner les boutons de suppression
-                        col_del1, col_del2 = st.columns([1, 1])
-
-                        with col_del1:
-                            # Bouton principal qui déclenche la phase de confirmation
-                            if st.button(
-                                "🗑️ SUPPRIMER CE RETRAIT", use_container_width=True
-                            ):
-                                # On mémorise l'index qu'on veut supprimer
-                                st.session_state.delete_confirm_idx = sel_idx
-                                st.rerun()  # Recharger pour afficher la case à cocher
-
-                        # Zone d'action conditionnelle si un index est en attente de suppression
                         if st.session_state.get("delete_confirm_idx") == sel_idx:
                             with st.container(border=True):
-                                st.warning(
-                                    f"⚠️ Voulez-vous réellement supprimer le retrait n°{sel_idx + 1} ?"
-                                )
-
-                                # La case à cocher pour valider
-                                confirm_check = st.checkbox(
-                                    "Cocher pour VALIDER la suppression",
-                                    key="check_del_val",
-                                )
-
+                                st.warning(f"⚠️ Voulez-vous réellement supprimer le retrait n°{sel_idx + 1} ?")
+                                confirm_check = st.checkbox("Cocher pour VALIDER la suppression", key="check_del_val")
                                 c_confirm_btn1, c_confirm_btn2 = st.columns(2)
-
                                 with c_confirm_btn1:
                                     if confirm_check:
-                                        # Le bouton de suppression finale n'apparaît que si la case est cochée
-                                        if st.button(
-                                            "❌ CONFIRMER DÉFINITIVEMENT",
-                                            type="primary",
-                                            use_container_width=True,
-                                        ):
+                                        if st.button("❌ CONFIRMER DÉFINITIVEMENT", type="primary", use_container_width=True):
                                             real_id = user_deps.iloc[sel_idx]["ID"]
-                                            df_dep_file = pd.read_csv(FILE_DEP_EPARGNE)
-                                            df_dep_file = df_dep_file[
-                                                df_dep_file["ID"] != real_id
-                                            ]
-                                            df_dep_file.to_csv(
-                                                FILE_DEP_EPARGNE, index=False
-                                            )
-
-                                            # Réinitialisation des états
+                                            df_temp = pd.read_csv(FILE_DEP_EPARGNE)
+                                            df_temp[df_temp["ID"] != real_id].to_csv(FILE_DEP_EPARGNE, index=False)
                                             st.session_state.delete_confirm_idx = None
                                             st.success("Retrait supprimé.")
                                             time.sleep(1)
                                             st.rerun()
-
                                 with c_confirm_btn2:
-                                    # Bouton d'annulation (équivalent à décocher)
                                     if st.button("↩️ ANNULER", use_container_width=True):
                                         st.session_state.delete_confirm_idx = None
                                         st.rerun()
-
                     else:
                         st.info("Aucun retrait effectué.")
+
             else:
                 st.warning("Données insuffisantes.")
+
+            # Demande 1 : Bouton Quitter TOUJOURS visible (en bas)
+            st.write("---")
+            if st.button("🔒 VERROUILLER ET QUITTER", use_container_width=True, key="exit_prog_final"):
+                st.session_state.prog_access_granted = False
+                st.session_state.page = "MAIN_APP"
+                st.rerun()
+
 # --- 13. PAGE : VERIF USER ADM ---
 elif st.session_state.page == "VERIF_USER_ADM":
     with st.container(border=True):
