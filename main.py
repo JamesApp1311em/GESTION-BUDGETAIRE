@@ -42,43 +42,40 @@ if "show_menu" not in st.session_state:
 if "dev_mode" not in st.session_state:
     st.session_state.dev_mode = False
 
-# --- 3. GESTION DYNAMIQUE DU STYLE CSS ---
-visibility = "hidden" if not st.session_state.dev_mode else "visible"
-display_mode = "none" if not st.session_state.dev_mode else "block"
-
-hide_st_style = f"""
+# --- 3. NETTOYAGE RADICAL DE L'INTERFACE (LOOK APPLICATION MOBILE) ---
+# On force le masquage complet pour les clients
+hide_st_style = """
 <style>
-/* Masquage des menus standards */
-header {{ visibility: {visibility} !important; }}
-footer {{ visibility: {visibility} !important; }}
-#MainMenu {{ visibility: {visibility} !important; }}
+/* 1. Masquer le header (barre du haut) et le footer (logo Streamlit en bas) */
+header {visibility: hidden !important;}
+footer {visibility: hidden !important;}
+#MainMenu {visibility: hidden !important;}
 
-/* --- CIBLE L'IMAGE 1 (Ordinateur : Manage App) --- */
-[data-testid="stStatusWidget"],
-.stAppDeployButton,
-div[class*="st-emotion-cache-1ky0h6e"],
-div[data-testid="stToolbar"] {{
-    display: {display_mode} !important;
-}}
+/* 2. Masquer les boutons de déploiement et de gestion (Manage app, etc.) */
+[data-testid="stStatusWidget"], 
+.stAppDeployButton, 
+.stDeployButton,
+div[data-testid="stToolbar"] {
+    display: none !important;
+}
 
-/* --- CIBLE L'IMAGE 2 (Android : Fork, Crown, etc.) --- */
-div[class*="viewerBadge"],
-div[class*="st-emotion-cache-kgp75f"],
-div[class*="st-emotion-cache-15z92p2"],
-div[class*="st-emotion-cache-1647p8l"],
-.stDeployButton {{
-    display: {display_mode} !important;
-    visibility: {visibility} !important;
-}}
+/* 3. Supprimer les badges Streamlit sur Android (Fork, Crown, etc.) */
+div[class*="viewerBadge"], 
+div[class*="st-emotion-cache-kgp75f"], 
+div[class*="st-emotion-cache-15z92p2"] {
+    display: none !important;
+}
 
-/* Empêcher le pull-to-refresh et fixer l'écran */
-html, body {{
+/* 4. Ajuster l'espacement pour que le contenu ne soit pas collé en haut */
+.block-container {
+    padding-top: 1rem !important;
+    padding-bottom: 0rem !important;
+}
+
+/* 5. Fixer l'écran pour éviter les rebonds bizarres sur mobile */
+html, body {
     overscroll-behavior-y: contain !important;
-    overflow: hidden !important;
-}}
-.stMain {{
-    overflow-y: auto !important;
-}}
+}
 </style>
 """
 st.markdown(hide_st_style, unsafe_allow_html=True)
@@ -245,11 +242,17 @@ elif st.session_state.page == "ACCEUIL":
     if is_maintenance:
         st.error("🚨 L'APPLICATION EST SOUS MAINTENANCE VEUILLEZ PATIENTER S'IL VOUS PLAIT")
     
+    # 🟢 LOGO EN DEHORS DU CADRE POUR PLUS D'ESPACE
+    col_l1, col_l2, col_l3 = st.columns([1, 1.5, 1]) # Crée un centrage parfait
+    with col_l2:
+        st.image("logo.png") # Plus de "use_container_width" pour garder la taille réelle
+    
+    st.markdown("<br>", unsafe_allow_html=True) # Petit espace sous le logo
+
     with st.container(border=True):
-        # 🟢 ON AJOUTE LE LOGO ICI (CENTRÉ)
-        st.image("logo.png", use_container_width=True)
         st.markdown(
-            "<h1 class='main-title'>🔐 ACCÈS AU SYSTÈME</h1>", unsafe_allow_html=True
+            "<h1 class='main-title' style='text-align: center;'>🔐 ACCÈS AU SYSTÈME</h1>", 
+            unsafe_allow_html=True
         )
         u_n = st.text_input("USER NAME", placeholder="Entrez votre nom...", disabled=is_maintenance)
         u_p = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password", disabled=is_maintenance)
@@ -285,20 +288,18 @@ elif st.session_state.page == "ACCEUIL":
         if col_nav1.button("🔑 LOGIN", use_container_width=True, disabled=is_maintenance):
             st.session_state.page = "LOGIN"
             st.rerun()
-        if col_nav2.button("🛡️ APP ADM", use_container_width=True): # Toujours actif pour l'admin
+        if col_nav2.button("🛡️ APP ADM", use_container_width=True):
             st.session_state.page = "VERIF_ADM"
             st.rerun()
         if col_nav3.button("👤 USER ADM", use_container_width=True, disabled=is_maintenance):
             st.session_state.page = "VERIF_USER_ADM"
             st.rerun()
 
-    # Message de fin de maintenance si le fichier vient d'être supprimé (optionnel)
+    # Message de fin de maintenance
     if "just_restored" in st.session_state and st.session_state.just_restored:
         st.balloons()
-        st.success("✅ Merci de Votre Patience, Une mise à jour a été effectuée et l'application peut être réutilisée de nouveau")
+        st.success("✅ Merci de Votre Patience...")
         st.session_state.just_restored = False
-
-    st.write("---")
 
 # --- 6. PAGE : LOGIN (CRÉATION DE COMPTE) ---
 elif st.session_state.page == "LOGIN":
