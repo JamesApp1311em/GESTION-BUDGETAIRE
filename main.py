@@ -42,44 +42,45 @@ if "show_menu" not in st.session_state:
 if "dev_mode" not in st.session_state:
     st.session_state.dev_mode = False
 
-# --- 3. NETTOYAGE RADICAL DE L'INTERFACE (LOOK APPLICATION MOBILE) ---
-# On force le masquage complet pour les clients
+# --- 3. NETTOYAGE TOTAL DE L'INTERFACE (ZÉRO TRACE STREAMLIT) ---
 hide_st_style = """
 <style>
-/* 1. Masquer le header (barre du haut) et le footer (logo Streamlit en bas) */
+/* 1. Masquage des éléments de structure */
 header {visibility: hidden !important;}
 footer {visibility: hidden !important;}
 #MainMenu {visibility: hidden !important;}
 
-/* 2. Masquer les boutons de déploiement et de gestion (Manage app, etc.) */
-[data-testid="stStatusWidget"], 
-.stAppDeployButton, 
-.stDeployButton,
-div[data-testid="stToolbar"] {
-    display: none !important;
-}
+/* 2. Suppression de la barre blanche du bas (Built with Streamlit) */
+div[data-testid="stFooterBlockContainer"] {display: none !important;}
+div[class*="stStatusWidget"] {display: none !important;}
 
-/* 3. Supprimer les badges Streamlit sur Android (Fork, Crown, etc.) */
-div[class*="viewerBadge"], 
+/* 3. Suppression des boutons Deploy, Manage App et Fullscreen */
+.stAppDeployButton, .stDeployButton, .viewerBadge {display: none !important;}
+button[title="View fullscreen"] {display: none !important;}
+div[data-testid="stToolbar"] {display: none !important;}
+
+/* 4. Masquer les éléments spécifiques Android/Mobile */
 div[class*="st-emotion-cache-kgp75f"], 
-div[class*="st-emotion-cache-15z92p2"] {
+div[class*="st-emotion-cache-15z92p2"],
+div[class*="st-emotion-cache-1647p8l"] {
     display: none !important;
+    visibility: hidden !important;
 }
 
-/* 4. Ajuster l'espacement pour que le contenu ne soit pas collé en haut */
+/* 5. Optimisation de l'espace (Contenu centré et propre) */
 .block-container {
-    padding-top: 1rem !important;
+    padding-top: 2rem !important;
     padding-bottom: 0rem !important;
+    max-width: 500px !important; /* Pour que ça ressemble à une petite fenêtre d'app */
 }
 
-/* 5. Fixer l'écran pour éviter les rebonds bizarres sur mobile */
+/* 6. Fixer l'écran pour éviter le défilement inutile */
 html, body {
     overscroll-behavior-y: contain !important;
 }
 </style>
 """
 st.markdown(hide_st_style, unsafe_allow_html=True)
-
 # --- 4. INITIALISATION DES BASES DE DONNÉES ---
 FILE_CLIENTS = "clients.csv"
 FILE_DATA = "historique_complet.csv"
