@@ -8,11 +8,12 @@ import datetime
 import zipfile
 from io import BytesIO
 
-# --- 1. CONFIGURATION DE LA PAGE (DOIT ÊTRE EN PREMIER) ---
+# --- 1. CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="Gestion Budgétaire",
     page_icon="favicon.png",
-    layout="centered"
+    layout="centered",
+    initial_sidebar_state="collapsed"  # 🟢 AJOUTÉ : Pour masquer le menu latéral au démarrage
 )
 
 # --- 2. INITIALISATION DU SESSION STATE ---
