@@ -246,7 +246,7 @@ elif st.session_state.page == "ACCEUIL":
     # 🟢 LOGO EN DEHORS DU CADRE POUR PLUS D'ESPACE
     col_l1, col_l2, col_l3 = st.columns([1, 1.5, 1]) # Crée un centrage parfait
     with col_l2:
-        st.image("logo.png") # Plus de "use_container_width" pour garder la taille réelle
+        st.image("logo.png.png") # Plus de "use_container_width" pour garder la taille réelle
     
     st.markdown("<br>", unsafe_allow_html=True) # Petit espace sous le logo
 
