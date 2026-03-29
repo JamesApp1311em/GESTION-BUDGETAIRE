@@ -11,7 +11,7 @@ from io import BytesIO
 # --- 1. CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="Gestion Budgétaire",
-    page_icon="favicon.png",
+    page_icon="logo.png.png",
     layout="centered",
     initial_sidebar_state="collapsed"  # 🟢 AJOUTÉ : Pour masquer le menu latéral au démarrage
 )
@@ -242,13 +242,6 @@ elif st.session_state.page == "ACCEUIL":
     # --- BLOCAGE MAINTENANCE ---
     if is_maintenance:
         st.error("🚨 L'APPLICATION EST SOUS MAINTENANCE VEUILLEZ PATIENTER S'IL VOUS PLAIT")
-    
-    # 🟢 LOGO EN DEHORS DU CADRE POUR PLUS D'ESPACE
-    col_l1, col_l2, col_l3 = st.columns([1, 1.5, 1]) # Crée un centrage parfait
-    with col_l2:
-        st.image("logo.png.png") # Plus de "use_container_width" pour garder la taille réelle
-    
-    st.markdown("<br>", unsafe_allow_html=True) # Petit espace sous le logo
 
     with st.container(border=True):
         st.markdown(
