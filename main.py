@@ -81,6 +81,7 @@ html, body {
 </style>
 """
 st.markdown(hide_st_style, unsafe_allow_html=True)
+st.markdown('<link rel="apple-touch-icon" href="https://raw.githubusercontent.com/JacquesSandjamba/Projet-Jacques/main/logo.png.png">', unsafe_allow_html=True)
 # --- 4. INITIALISATION DES BASES DE DONNÉES ---
 FILE_CLIENTS = "clients.csv"
 FILE_DATA = "historique_complet.csv"
