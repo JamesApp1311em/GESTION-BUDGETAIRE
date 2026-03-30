@@ -13,8 +13,20 @@ st.set_page_config(
     page_title="Gestion Budgétaire",
     page_icon="logo.png.png",
     layout="centered",
-    initial_sidebar_state="collapsed"  # 🟢 AJOUTÉ : Pour masquer le menu latéral au démarrage
+    initial_sidebar_state="collapsed"
 )
+
+# 🟢 AJOUTÉ : Pour masquer les barres de Streamlit (Haut et Bas)
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            div.stActionButton {display: none;} /* Masque les boutons d'action */
+            .viewerBadge_container__1QS1n {display: none;} /* Masque "Built with Streamlit" */
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
 
 # --- 2. INITIALISATION DU SESSION STATE ---
 if "page" not in st.session_state:
