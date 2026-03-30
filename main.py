@@ -426,15 +426,24 @@ elif st.session_state.page == "APP_ADM":
                 st.session_state.page = "ACCEUIL"
                 st.rerun()
 
-        with col_imp:
-            uploaded_backup = st.file_uploader("Upload", type="zip", label_visibility="collapsed")
-            if uploaded_backup:
-                if st.button("📤 Import", use_container_width=True):
+        # --- SECTION IMPORT (SORTIE DES COLONNES POUR LE MOBILE) ---
+        st.write("---") # Petite ligne de séparation
+        uploaded_backup = st.file_uploader("Sélectionner le backup ZIP pour restaurer", type="zip")
+        
+        if uploaded_backup:
+            # 🟢 On affiche un message de succès pour forcer le rafraîchissement sur mobile
+            st.success(f"✅ Fichier détecté : {uploaded_backup.name}")
+            
+            # Le bouton prend toute la largeur pour être facile à cliquer sur mobile
+            if st.button("📤 LANCER L'IMPORTATION", use_container_width=True, type="primary"):
+                with st.spinner("Restauration en cours..."):
                     with zipfile.ZipFile(uploaded_backup, 'r') as z:
                         z.extractall('.')
+                    
                     # Suppression du verrou de maintenance
                     if os.path.exists(FILE_MAINTENANCE):
                         os.remove(FILE_MAINTENANCE)
+                    
                     st.session_state.just_restored = True
                     st.session_state.page = "ACCEUIL"
                     st.rerun()
