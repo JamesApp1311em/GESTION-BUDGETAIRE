@@ -1,6 +1,6 @@
 {
   "name": "Gestion Budgétaire",
-  "short_name": "Budget",
+  "short_name": "My Budget",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#0e1117",
