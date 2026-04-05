@@ -94,50 +94,40 @@ html, body {
 """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 st.markdown('<link rel="apple-touch-icon" href="https://raw.githubusercontent.com/JacquesSandjamba/Projet-Jacques/main/logo.png.png">', unsafe_allow_html=True)
-# --- 4. INITIALISATION DES BASES DE DONNÉES ---
-FILE_CLIENTS = "clients.csv"
-FILE_DATA = "historique_complet.csv"
-FILE_DEP_EPARGNE = "depenses_epargne.csv"  # 🟢 CORRECTION : Déclaration globale
+from streamlit_gsheets import GSheetsConnection
 
+# --- CONNEXION CLOUD ---
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-def init_db():
-    if not os.path.exists(FILE_CLIENTS) or os.stat(FILE_CLIENTS).st_size == 0:
-        columns_clients = [
-            "name",
-            "pw_open_modify",
-            "pw_adm_print_prog",
-            "pw_user_adm",
-            "status",
-        ]
-        pd.DataFrame(columns=columns_clients).to_csv(FILE_CLIENTS, index=False)
+def init_db_cloud():
+    # 1. Vérification / Initialisation des CLIENTS
+    try:
+        df_clients = conn.read(worksheet="CLIENTS")
+    except:
+        columns_clients = ["name", "pw_open_modify", "pw_adm_print_prog", "pw_user_adm", "status"]
+        df_init = pd.DataFrame(columns=columns_clients)
+        conn.update(worksheet="CLIENTS", data=df_init)
+        st.success("✅ Onglet CLIENTS créé sur le Cloud")
 
-    if not os.path.exists(FILE_DATA) or os.stat(FILE_DATA).st_size == 0:
-        columns_data = [
-            "Utilisateur",
-            "Mois",
-            "Annee",
-            "Revenu",
-            "Loyer",
-            "Scolarite",
-            "Ration",
-            "Dette",
-            "Poche",
-            "Assistance",
-            "Autres",
-            "Total_Depenses",
-            "Epargne",
-            "Date_Enregistrement",
-        ]
-        pd.DataFrame(columns=columns_data).to_csv(FILE_DATA, index=False)
-    
-    # 🟢 Initialisation du fichier des retraits si inexistant
-    if not os.path.exists(FILE_DEP_EPARGNE):
-        pd.DataFrame(columns=["ID", "Utilisateur", "Raison", "Montant", "Date"]).to_csv(
-            FILE_DEP_EPARGNE, index=False
-        )
+    # 2. Vérification / Initialisation de l'HISTORIQUE
+    try:
+        df_data = conn.read(worksheet="HISTORIQUE")
+    except:
+        columns_data = ["Utilisateur", "Mois", "Annee", "Revenu", "Loyer", "Scolarite", 
+                        "Ration", "Dette", "Poche", "Assistance", "Autres", 
+                        "Total_Depenses", "Epargne", "Date_Enregistrement"]
+        df_init = pd.DataFrame(columns=columns_data)
+        conn.update(worksheet="HISTORIQUE", data=df_init)
 
+    # 3. Vérification / Initialisation des DEPENSES EPARGNE
+    try:
+        df_dep = conn.read(worksheet="DEPENSES_EPARGNE")
+    except:
+        df_init = pd.DataFrame(columns=["ID", "Utilisateur", "Raison", "Montant", "Date"])
+        conn.update(worksheet="DEPENSES_EPARGNE", data=df_init)
 
-init_db()
+# On remplace l'ancien appel
+init_db_cloud()
 
 # --- 5. FONCTIONS TECHNIQUES ---
 
