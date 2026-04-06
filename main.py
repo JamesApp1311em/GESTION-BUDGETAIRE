@@ -56,6 +56,10 @@ if "show_menu" not in st.session_state:
 if "dev_mode" not in st.session_state:
     st.session_state.dev_mode = False
 
+# 🟢 AJOUT : Pour stocker temporairement les données lues sur Google Sheets
+if "data_cloud" not in st.session_state:
+    st.session_state.data_cloud = None
+
 # --- 3. NETTOYAGE TOTAL DE L'INTERFACE (ZÉRO TRACE STREAMLIT) ---
 hide_st_style = """
 <style>
@@ -96,37 +100,45 @@ html, body {
 """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 st.markdown('<link rel="apple-touch-icon" href="https://raw.githubusercontent.com/JacquesSandjamba/Projet-Jacques/main/logo.png.png">', unsafe_allow_html=True)
-from streamlit_gsheets import GSheetsConnection
+
+# 🔵 CORRECTION ICI : Utilisation du nom correct du module
+from st_gsheets_connection import GSheetsConnection
 
 # --- CONNEXION CLOUD ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def init_db_cloud():
-    # 1. Vérification / Initialisation des CLIENTS
+    # 1. Vérification des CLIENTS
     try:
-        df_clients = conn.read(worksheet="CLIENTS")
-    except:
+        # On utilise ttl=0 pour toujours avoir les données réelles du Cloud
+        st.session_state.df_clients = conn.read(worksheet="CLIENTS", ttl=0)
+    except Exception:
         columns_clients = ["name", "pw_open_modify", "pw_adm_print_prog", "pw_user_adm", "status"]
         df_init = pd.DataFrame(columns=columns_clients)
         conn.update(worksheet="CLIENTS", data=df_init)
-        st.success("✅ Onglet CLIENTS créé sur le Cloud")
+        st.session_state.df_clients = df_init
 
-    # 2. Vérification / Initialisation de l'HISTORIQUE
+    # 2. Vérification de l'HISTORIQUE
     try:
-        df_data = conn.read(worksheet="HISTORIQUE")
-    except:
+        st.session_state.df_historique = conn.read(worksheet="HISTORIQUE", ttl=0)
+    except Exception:
         columns_data = ["Utilisateur", "Mois", "Annee", "Revenu", "Loyer", "Scolarite", 
                         "Ration", "Dette", "Poche", "Assistance", "Autres", 
                         "Total_Depenses", "Epargne", "Date_Enregistrement"]
         df_init = pd.DataFrame(columns=columns_data)
         conn.update(worksheet="HISTORIQUE", data=df_init)
+        st.session_state.df_historique = df_init
 
-    # 3. Vérification / Initialisation des DEPENSES EPARGNE
+    # 3. Vérification des DEPENSES EPARGNE
     try:
-        df_dep = conn.read(worksheet="DEPENSES_EPARGNE")
-    except:
+        st.session_state.df_depenses = conn.read(worksheet="DEPENSES_EPARGNE", ttl=0)
+    except Exception:
         df_init = pd.DataFrame(columns=["ID", "Utilisateur", "Raison", "Montant", "Date"])
         conn.update(worksheet="DEPENSES_EPARGNE", data=df_init)
+        st.session_state.df_depenses = df_init
+
+# Appel de la fonction pour connecter l'app au Cloud
+init_db_cloud()
 
 # On remplace l'ancien appel
 init_db_cloud()
