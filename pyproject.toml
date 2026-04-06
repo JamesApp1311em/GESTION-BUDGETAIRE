@@ -7,7 +7,8 @@ dependencies = [
     "fpdf",
     "plotly",
     "matplotlib",
-    "altair"
+    "altair",
+    "st-gsheets-connection" # 🟢 AJOUTE CETTE LIGNE ICI
 ]
 
 [tool.setuptools]
