@@ -2,11 +2,13 @@ import streamlit as st
 import pandas as pd
 import os
 import time
-import plotly.graph_objects as go  # 🟢 AJOUTÉ : Pour les graphiques avec échelle fixe
+import plotly.graph_objects as go
 from fpdf import FPDF
 import datetime
 import zipfile
 from io import BytesIO
+# 🔵 NOUVEAU : Import pour la connexion Google Sheets
+from st_gsheets_connection import GSheetsConnection
 
 # --- 1. CONFIGURATION DE LA PAGE ---
 st.set_page_config(
