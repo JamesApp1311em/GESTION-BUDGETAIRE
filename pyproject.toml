@@ -1,15 +1,1 @@
-[project]
-name = "gestion-budgetaire"
-version = "0.1.0"
-dependencies = [
-    "streamlit",
-    "pandas",
-    "fpdf",
-    "plotly",
-    "matplotlib",
-    "altair",
-    "st-gsheets-connection" # 🟢 AJOUTE CETTE LIGNE ICI
-]
 
-[tool.setuptools]
-packages = []  # <--- CETTE LIGNE DIT : "IL N'Y A PAS DE ROOT PACKAGE"
