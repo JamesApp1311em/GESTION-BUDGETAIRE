@@ -1,3 +1,4 @@
+from st_gsheets_connection import GSheetsConnection
 import streamlit as st
 import pandas as pd
 import os
@@ -8,7 +9,6 @@ import datetime
 import zipfile
 from io import BytesIO
 # 🔵 NOUVEAU : Import pour la connexion Google Sheets
-from st_gsheets_connection import GSheetsConnection
 
 # --- 1. CONFIGURATION DE LA PAGE ---
 st.set_page_config(
