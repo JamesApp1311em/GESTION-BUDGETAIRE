@@ -4,4 +4,4 @@ fpdf
 plotly
 matplotlib
 altair
-st-gsheets-connection
+st_gsheets_connection
