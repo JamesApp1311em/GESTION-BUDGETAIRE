@@ -18,6 +18,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- 🟢 AJOUTE LES VARIABLES ICI ---
+FILE_CLIENTS = "clients.csv"
+FILE_DATA = "data.csv"
+FILE_DEP_EPARGNE = "depenses_epargne.csv"
+FILE_MAINTENANCE = "maintenance.txt"
 # 🟢 AJOUTÉ : Pour masquer les barres de Streamlit (Haut et Bas)
 hide_st_style = """
             <style>
@@ -105,42 +110,27 @@ st.markdown('<link rel="apple-touch-icon" href="https://raw.githubusercontent.co
 from st_gsheets_connection import GSheetsConnection
 
 # --- CONNEXION CLOUD ---
-conn = st.connection("gsheets", type=GSheetsConnection)
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+except Exception as e:
+    st.error(f"Erreur de connexion Google Sheets: {e}")
 
 def init_db_cloud():
-    # 1. Vérification des CLIENTS
+    # Vérification et création des fichiers locaux s'ils manquent
+    for f, cols in {
+        FILE_CLIENTS: ["name", "pw_open_modify", "pw_adm_print_prog", "pw_user_adm", "status"],
+        FILE_DATA: ["Utilisateur", "Mois", "Annee", "Revenu", "Loyer", "Scolarite", "Ration", "Dette", "Poche", "Assistance", "Autres", "Total_Depenses", "Epargne", "Date_Enregistrement"],
+        FILE_DEP_EPARGNE: ["ID", "Utilisateur", "Raison", "Montant", "Date"]
+    }.items():
+        if not os.path.exists(f):
+            pd.DataFrame(columns=cols).to_csv(f, index=False)
+            
+    # Tentative de lecture Cloud (facultatif au démarrage pour éviter les plantages)
     try:
-        # On utilise ttl=0 pour toujours avoir les données réelles du Cloud
         st.session_state.df_clients = conn.read(worksheet="CLIENTS", ttl=0)
-    except Exception:
-        columns_clients = ["name", "pw_open_modify", "pw_adm_print_prog", "pw_user_adm", "status"]
-        df_init = pd.DataFrame(columns=columns_clients)
-        conn.update(worksheet="CLIENTS", data=df_init)
-        st.session_state.df_clients = df_init
+    except:
+        st.session_state.df_clients = pd.read_csv(FILE_CLIENTS)
 
-    # 2. Vérification de l'HISTORIQUE
-    try:
-        st.session_state.df_historique = conn.read(worksheet="HISTORIQUE", ttl=0)
-    except Exception:
-        columns_data = ["Utilisateur", "Mois", "Annee", "Revenu", "Loyer", "Scolarite", 
-                        "Ration", "Dette", "Poche", "Assistance", "Autres", 
-                        "Total_Depenses", "Epargne", "Date_Enregistrement"]
-        df_init = pd.DataFrame(columns=columns_data)
-        conn.update(worksheet="HISTORIQUE", data=df_init)
-        st.session_state.df_historique = df_init
-
-    # 3. Vérification des DEPENSES EPARGNE
-    try:
-        st.session_state.df_depenses = conn.read(worksheet="DEPENSES_EPARGNE", ttl=0)
-    except Exception:
-        df_init = pd.DataFrame(columns=["ID", "Utilisateur", "Raison", "Montant", "Date"])
-        conn.update(worksheet="DEPENSES_EPARGNE", data=df_init)
-        st.session_state.df_depenses = df_init
-
-# Appel de la fonction pour connecter l'app au Cloud
-init_db_cloud()
-
-# On remplace l'ancien appel
 init_db_cloud()
 
 # --- 5. FONCTIONS TECHNIQUES ---
