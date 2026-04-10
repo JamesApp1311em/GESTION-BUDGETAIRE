@@ -1,1 +1,22 @@
-
+{
+  "name": "Gestion Budgétaire",
+  "short_name": "Budget",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0e1117",
+  "theme_color": "#0e1117",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/JamesApp1311em/GESTION-BUDGETAIRE/main/logo.png.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/JamesApp1311em/GESTION-BUDGETAIRE/main/logo.png.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
