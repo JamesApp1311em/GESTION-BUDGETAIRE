@@ -1,14 +1,13 @@
+
 import streamlit as st
 import pandas as pd
 import os
 import time
-import plotly.graph_objects as go
+import plotly.graph_objects as go  # 🟢 AJOUTÉ : Pour les graphiques avec échelle fixe
 from fpdf import FPDF
 import datetime
 import zipfile
 from io import BytesIO
-# 🔵 NOUVEAU : Import pour la connexion Google Sheets
-from st_gsheets_connection import GSheetsConnection
 
 # --- 1. CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -18,11 +17,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 🟢 AJOUTE LES VARIABLES ICI ---
-FILE_CLIENTS = "clients.csv"
-FILE_DATA = "data.csv"
-FILE_DEP_EPARGNE = "depenses_epargne.csv"
-FILE_MAINTENANCE = "maintenance.txt"
 # 🟢 AJOUTÉ : Pour masquer les barres de Streamlit (Haut et Bas)
 hide_st_style = """
             <style>
@@ -60,10 +54,6 @@ if "show_menu" not in st.session_state:
 
 if "dev_mode" not in st.session_state:
     st.session_state.dev_mode = False
-
-# 🟢 AJOUT : Pour stocker temporairement les données lues sur Google Sheets
-if "data_cloud" not in st.session_state:
-    st.session_state.data_cloud = None
 
 # --- 3. NETTOYAGE TOTAL DE L'INTERFACE (ZÉRO TRACE STREAMLIT) ---
 hide_st_style = """
@@ -105,33 +95,50 @@ html, body {
 """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 st.markdown('<link rel="apple-touch-icon" href="https://raw.githubusercontent.com/JacquesSandjamba/Projet-Jacques/main/logo.png.png">', unsafe_allow_html=True)
+# --- 4. INITIALISATION DES BASES DE DONNÉES ---
+FILE_CLIENTS = "clients.csv"
+FILE_DATA = "historique_complet.csv"
+FILE_DEP_EPARGNE = "depenses_epargne.csv"  # 🟢 CORRECTION : Déclaration globale
 
-# 🔵 CORRECTION ICI : Utilisation du nom correct du module
-from st_gsheets_connection import GSheetsConnection
 
-# --- CONNEXION CLOUD ---
-try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-except Exception as e:
-    st.error(f"Erreur de connexion Google Sheets: {e}")
+def init_db():
+    if not os.path.exists(FILE_CLIENTS) or os.stat(FILE_CLIENTS).st_size == 0:
+        columns_clients = [
+            "name",
+            "pw_open_modify",
+            "pw_adm_print_prog",
+            "pw_user_adm",
+            "status",
+        ]
+        pd.DataFrame(columns=columns_clients).to_csv(FILE_CLIENTS, index=False)
 
-def init_db_cloud():
-    # Vérification et création des fichiers locaux s'ils manquent
-    for f, cols in {
-        FILE_CLIENTS: ["name", "pw_open_modify", "pw_adm_print_prog", "pw_user_adm", "status"],
-        FILE_DATA: ["Utilisateur", "Mois", "Annee", "Revenu", "Loyer", "Scolarite", "Ration", "Dette", "Poche", "Assistance", "Autres", "Total_Depenses", "Epargne", "Date_Enregistrement"],
-        FILE_DEP_EPARGNE: ["ID", "Utilisateur", "Raison", "Montant", "Date"]
-    }.items():
-        if not os.path.exists(f):
-            pd.DataFrame(columns=cols).to_csv(f, index=False)
-            
-    # Tentative de lecture Cloud (facultatif au démarrage pour éviter les plantages)
-    try:
-        st.session_state.df_clients = conn.read(worksheet="CLIENTS", ttl=0)
-    except:
-        st.session_state.df_clients = pd.read_csv(FILE_CLIENTS)
+    if not os.path.exists(FILE_DATA) or os.stat(FILE_DATA).st_size == 0:
+        columns_data = [
+            "Utilisateur",
+            "Mois",
+            "Annee",
+            "Revenu",
+            "Loyer",
+            "Scolarite",
+            "Ration",
+            "Dette",
+            "Poche",
+            "Assistance",
+            "Autres",
+            "Total_Depenses",
+            "Epargne",
+            "Date_Enregistrement",
+        ]
+        pd.DataFrame(columns=columns_data).to_csv(FILE_DATA, index=False)
+    
+    # 🟢 Initialisation du fichier des retraits si inexistant
+    if not os.path.exists(FILE_DEP_EPARGNE):
+        pd.DataFrame(columns=["ID", "Utilisateur", "Raison", "Montant", "Date"]).to_csv(
+            FILE_DEP_EPARGNE, index=False
+        )
 
-init_db_cloud()
+
+init_db()
 
 # --- 5. FONCTIONS TECHNIQUES ---
 
