@@ -7,7 +7,7 @@ from fpdf import FPDF
 import datetime
 import zipfile
 from io import BytesIO
-from supabase import create_client, Client # 🟢 AJOUTÉ
+from supabase import create_client, Client 
 
 # --- 1. CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -17,137 +17,68 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 🟢 AJOUTÉ : Pour masquer les barres de Streamlit (Haut et Bas)
-hide_st_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
-            div.stActionButton {display: none;} /* Masque les boutons d'action */
-            .viewerBadge_container__1QS1n {display: none;} /* Masque "Built with Streamlit" */
-            </style>
-            """
-st.markdown(hide_st_style, unsafe_allow_html=True)
+# --- 2. CONNEXION SUPABASE (CLOUD) ---
+# Ces informations doivent être dans tes "Secrets" sur Streamlit Cloud
+URL_SUPABASE = st.secrets["SUPABASE_URL"]
+CLE_SUPABASE = st.secrets["SUPABASE_KEY"]
 
-# --- 2. INITIALISATION DU SESSION STATE ---
-if "page" not in st.session_state:
-    st.session_state.page = "ACCEUIL"
+@st.cache_resource
+def init_connection():
+    return create_client(URL_SUPABASE, CLE_SUPABASE)
 
-# Vérification du mode maintenance (Verrouillage global)
-FILE_MAINTENANCE = "maintenance.txt"
-is_maintenance = os.path.exists(FILE_MAINTENANCE)
+supabase = init_connection()
 
-if "inputs_locked" not in st.session_state:
-    st.session_state.inputs_locked = True
-
-if "confirm_exit" not in st.session_state:
-    st.session_state.confirm_exit = False
-
-if "show_extend_table" not in st.session_state:
-    st.session_state.show_extend_table = False
-
-if "current_user" not in st.session_state:
-    st.session_state.current_user = None
-
-if "show_menu" not in st.session_state:
-    st.session_state.show_menu = False
-
-if "dev_mode" not in st.session_state:
-    st.session_state.dev_mode = False
-
-# --- 3. NETTOYAGE TOTAL DE L'INTERFACE (ZÉRO TRACE STREAMLIT) ---
+# --- 3. NETTOYAGE TOTAL DE L'INTERFACE (STYLE PERSONNALISÉ) ---
 hide_st_style = """
 <style>
-/* 1. Masquage des éléments de structure */
 header {visibility: hidden !important;}
 footer {visibility: hidden !important;}
 #MainMenu {visibility: hidden !important;}
-
-/* 2. Suppression de la barre blanche du bas (Built with Streamlit) */
 div[data-testid="stFooterBlockContainer"] {display: none !important;}
-div[class*="stStatusWidget"] {display: none !important;}
-
-/* 3. Suppression des boutons Deploy, Manage App et Fullscreen */
 .stAppDeployButton, .stDeployButton, .viewerBadge {display: none !important;}
-button[title="View fullscreen"] {display: none !important;}
-div[data-testid="stToolbar"] {display: none !important;}
-
-/* 4. Masquer les éléments spécifiques Android/Mobile */
-div[class*="st-emotion-cache-kgp75f"], 
-div[class*="st-emotion-cache-15z92p2"],
-div[class*="st-emotion-cache-1647p8l"] {
-    display: none !important;
-    visibility: hidden !important;
-}
-
-/* 5. Optimisation de l'espace (Contenu centré et propre) */
-.block-container {
-    padding-top: 2rem !important;
-    padding-bottom: 0rem !important;
-    max-width: 500px !important; /* Pour que ça ressemble à une petite fenêtre d'app */
-}
-
-/* 6. Fixer l'écran pour éviter le défilement inutile */
-html, body {
-    overscroll-behavior-y: contain !important;
-}
+.block-container {padding-top: 2rem !important; max-width: 500px !important;}
+html, body {overscroll-behavior-y: contain !important;}
 </style>
 """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 st.markdown('<link rel="apple-touch-icon" href="https://raw.githubusercontent.com/JacquesSandjamba/Projet-Jacques/main/logo.png.png">', unsafe_allow_html=True)
-# --- 4. INITIALISATION DES BASES DE DONNÉES ---
-FILE_CLIENTS = "clients.csv"
-FILE_DATA = "historique_complet.csv"
-FILE_DEP_EPARGNE = "depenses_epargne.csv"  # 🟢 CORRECTION : Déclaration globale
 
+# --- 4. INITIALISATION DU SESSION STATE ---
+if "page" not in st.session_state:
+    st.session_state.page = "ACCEUIL"
 
-def init_db():
-    if not os.path.exists(FILE_CLIENTS) or os.stat(FILE_CLIENTS).st_size == 0:
-        columns_clients = [
-            "name",
-            "pw_open_modify",
-            "pw_adm_print_prog",
-            "pw_user_adm",
-            "status",
-        ]
-        pd.DataFrame(columns=columns_clients).to_csv(FILE_CLIENTS, index=False)
+states = ["inputs_locked", "confirm_exit", "show_extend_table", "current_user", "show_menu", "dev_mode"]
+for s in states:
+    if s not in st.session_state:
+        st.session_state[s] = True if s == "inputs_locked" else False
 
-    if not os.path.exists(FILE_DATA) or os.stat(FILE_DATA).st_size == 0:
-        columns_data = [
-            "Utilisateur",
-            "Mois",
-            "Annee",
-            "Revenu",
-            "Loyer",
-            "Scolarite",
-            "Ration",
-            "Dette",
-            "Poche",
-            "Assistance",
-            "Autres",
-            "Total_Depenses",
-            "Epargne",
-            "Date_Enregistrement",
-        ]
-        pd.DataFrame(columns=columns_data).to_csv(FILE_DATA, index=False)
-    
-    # 🟢 Initialisation du fichier des retraits si inexistant
-    if not os.path.exists(FILE_DEP_EPARGNE):
-        pd.DataFrame(columns=["ID", "Utilisateur", "Raison", "Montant", "Date"]).to_csv(
-            FILE_DEP_EPARGNE, index=False
-        )
+# --- 5. FONCTIONS DE LECTURE/ÉCRITURE CLOUD (SUPABASE) ---
 
+def charger_table(nom_table):
+    """Récupère les données depuis Supabase"""
+    try:
+        response = supabase.table(nom_table).select("*").execute()
+        if response.data:
+            return pd.DataFrame(response.data)
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erreur de lecture Cloud ({nom_table}): {e}")
+        return pd.DataFrame()
 
-init_db()
+def sauvegarder_ligne(nom_table, dictionnaire_donnees):
+    """Enregistre une nouvelle ligne dans Supabase"""
+    try:
+        supabase.table(nom_table).insert(dictionnaire_donnees).execute()
+        return True
+    except Exception as e:
+        st.error(f"Erreur d'écriture Cloud ({nom_table}): {e}")
+        return False
 
-# --- 5. FONCTIONS TECHNIQUES ---
-
-
+# --- 6. FONCTION PDF (COMPLÈTE) ---
 def create_pdf(row):
-    """Génère le bulletin de paie au format PDF"""
     pdf = FPDF()
     pdf.add_page()
-
+    
     # En-tête
     pdf.set_font("Arial", "B", 16)
     pdf.set_fill_color(164, 198, 228)
@@ -169,7 +100,7 @@ def create_pdf(row):
     pdf.cell(100, 10, f"{float(row['Revenu']):,.2f}", 1, 0, "R")
     pdf.cell(35, 10, "100%", 1, 1, "C")
 
-    # Détails des dépenses
+    # Détails
     pdf.ln(5)
     pdf.set_font("Arial", "B", 12)
     pdf.cell(190, 10, "DETAIL DES DEPENSES ($)", 1, 1, "C", True)
@@ -197,7 +128,6 @@ def create_pdf(row):
     pdf.ln(5)
     pdf.set_font("Arial", "B", 12)
     pdf.set_fill_color(230, 230, 230)
-
     pdf.cell(45, 10, "TOTAL DEPENSES", 1, 0, "L", True)
     pdf.cell(10, 10, "$", 1, 0, "C")
     pdf.cell(100, 10, f"{float(row['Total_Depenses']):,.2f}", 1, 0, "R")
@@ -208,35 +138,18 @@ def create_pdf(row):
     pdf.cell(100, 10, f"{float(row['Epargne']):,.2f}", 1, 0, "R")
     pdf.cell(35, 10, f"{(float(row['Epargne']) / rev) * 100:.1f}%", 1, 1, "C")
 
-    # Observation
-    obs = "GOOD" if float(row["Epargne"]) > 0 else "BAD"
-    pdf.ln(5)
-    pdf.cell(45, 10, "OBSERVATION", 1, 0, "L", True)
-
-    if obs == "GOOD":
-        pdf.set_fill_color(144, 238, 144)  # Vert
-    else:
-        pdf.set_fill_color(255, 99, 71)  # Rouge
-
-    pdf.cell(145, 10, obs, 1, 1, "C", True)
-
     # Pied de page
     pdf.ln(10)
     pdf.set_font("Arial", "I", 8)
-    pdf.cell(
-        190,
-        5,
-        f"Document généré le {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}",
-        0,
-        1,
-        "R",
-    )
+    pdf.cell(190, 5, f"Généré le {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}", 0, 1, "R")
 
-    # --- CORRECTION DE L'ALIGNEMENT DES LIGNES CI-DESSOUS ---
     pdf_output = pdf.output(dest="S")
     if isinstance(pdf_output, str):
         return pdf_output.encode("latin-1")
     return bytes(pdf_output)
+
+# --- 7. NAVIGATION ET PAGES ---
+# Ici tu pourras ajouter tes blocs : if st.session_state.page == "ACCEUIL": ...
 
 
 # --- LOGIQUE DES PAGES (A SUIVRE...) ---
