@@ -12,15 +12,18 @@ from supabase import create_client, Client
 # --- 1. CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="Gestion Budgétaire",
-    page_icon="logo.png.png",
+    page_icon="logo.png.png", # Corrigé selon ta capture GitHub
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
 # --- 2. CONNEXION SUPABASE (CLOUD) ---
-# Ces informations doivent être dans tes "Secrets" sur Streamlit Cloud
-URL_SUPABASE = st.secrets["SUPABASE_URL"]
-CLE_SUPABASE = st.secrets["SUPABASE_KEY"]
+try:
+    URL_SUPABASE = st.secrets["SUPABASE_URL"]
+    CLE_SUPABASE = st.secrets["SUPABASE_KEY"]
+except Exception:
+    st.error("⚠️ Erreur : Les Secrets Supabase ne sont pas configurés sur Streamlit.")
+    st.stop()
 
 @st.cache_resource
 def init_connection():
