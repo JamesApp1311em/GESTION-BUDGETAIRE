@@ -4,3 +4,6 @@ fpdf
 plotly
 matplotlib
 altair
+supabase
+python-dotenv
+httpx
