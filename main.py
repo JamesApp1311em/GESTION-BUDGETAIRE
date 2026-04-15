@@ -1,13 +1,13 @@
-
 import streamlit as st
 import pandas as pd
 import os
 import time
-import plotly.graph_objects as go  # 🟢 AJOUTÉ : Pour les graphiques avec échelle fixe
+import plotly.graph_objects as go
 from fpdf import FPDF
 import datetime
 import zipfile
 from io import BytesIO
+from supabase import create_client, Client # 🟢 AJOUTÉ
 
 # --- 1. CONFIGURATION DE LA PAGE ---
 st.set_page_config(
