@@ -7,8 +7,10 @@ dependencies = [
     "fpdf",
     "plotly",
     "matplotlib",
-    "altair"
+    "altair",
+    "supabase",
+    "httpx"
 ]
 
 [tool.setuptools]
-packages = []  # <--- CETTE LIGNE DIT : "IL N'Y A PAS DE ROOT PACKAGE"
+packages = []
