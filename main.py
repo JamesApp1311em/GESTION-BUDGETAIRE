@@ -268,24 +268,26 @@ elif st.session_state.page == "LOGIN":
         new_p2 = st.text_input("PASSWORD (ADM / PRINT / PROGRESS)", type="password")
         new_p3 = st.text_input("PASSWORD (USER ADM)", type="password")
 
-        if st.button(
-            if st.button("💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="primary"):
-            if new_n and new_p1 and new_p2 and new_p3:
-                # 1. On récupère la liste des clients depuis le Cloud
-                df_clients = charger_table("clients")
-                
-                # 2. On vérifie si le nom existe déjà dans la base
-                if not df_clients.empty and new_n in df_clients["name"].values:
-                    st.error("❌ Ce nom d'utilisateur existe déjà sur le Cloud.")
-                else:
-                    # 3. Préparation des données
-                    new_entry = {
-                        "name": new_n,
-                        "pw_open_modify": new_p1,
-                        "pw_adm_print_prog": new_p2,
-                        "pw_user_adm": new_p3,
-                        "status": "Active",
-                    }
+        # --- SUPPRIME LA LIGNE "if st.button(" QUI ÉTAIT ICI ---
+
+if st.button("💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="primary"):
+    if new_n and new_p1 and new_p2 and new_p3:
+        # 1. On récupère la liste des clients depuis le Cloud
+        df_clients = charger_table("clients")
+        
+        # 2. On vérifie si le nom existe déjà dans la base
+        if not df_clients.empty and new_n in df_clients["name"].values:
+            st.error("❌ Ce nom d'utilisateur existe déjà sur le Cloud.")
+        else:
+            # 3. Préparation des données
+            new_entry = {
+                "name": new_n,
+                "pw_open_modify": new_p1,
+                "pw_adm_print_prog": new_p2,
+                "pw_user_adm": new_p3,
+                "status": "Active",
+            }
+            # ... suite de ton code (appel à sauvegarder_ligne par exemple)
                     
                     # 4. Envoi vers Supabase via ta fonction
                     succes = sauvegarder_ligne("clients", new_entry)
