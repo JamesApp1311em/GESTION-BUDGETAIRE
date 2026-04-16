@@ -271,30 +271,29 @@ elif st.session_state.page == "LOGIN":
         # --- SUPPRIME LA LIGNE "if st.button(" QUI ÉTAIT ICI ---
 
 if st.button("💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="primary"):
-    if new_n and new_p1 and new_p2 and new_p3:
-        # 1. On récupère la liste des clients depuis le Cloud
-        df_clients = charger_table("clients")
-        
-        # 2. On vérifie si le nom existe déjà dans la base
-        if not df_clients.empty and new_n in df_clients["name"].values:
-            st.error("❌ Ce nom d'utilisateur existe déjà sur le Cloud.")
-        else:
-            # 3. Préparation des données
-            new_entry = {
-                "name": new_n,
-                "pw_open_modify": new_p1,
-                "pw_adm_print_prog": new_p2,
-                "pw_user_adm": new_p3,
-                "status": "Active",
-            }
-            # ... suite de ton code (appel à sauvegarder_ligne par exemple)
+            if new_n and new_p1 and new_p2 and new_p3:
+                # 1. On récupère la liste des clients depuis le Cloud
+                df_clients = charger_table("clients")
+                
+                # 2. On vérifie si le nom existe déjà dans la base
+                if not df_clients.empty and new_n in df_clients["name"].values:
+                    st.error("❌ Ce nom d'utilisateur existe déjà sur le Cloud.")
+                else:
+                    # 3. Préparation des données
+                    new_entry = {
+                        "name": new_n,
+                        "pw_open_modify": new_p1,
+                        "pw_adm_print_prog": new_p2,
+                        "pw_user_adm": new_p3,
+                        "status": "Active",
+                    }
                     
-                    # 4. Envoi vers Supabase via ta fonction
+                    # 4. Envoi vers Supabase (ALIGNÉ AVEC new_entry)
                     succes = sauvegarder_ligne("clients", new_entry)
                     
                     if succes:
                         st.success(f"✅ Compte pour '{new_n}' créé avec succès sur le Cloud !")
-                        time.sleep(2) # On laisse le temps de lire le message
+                        time.sleep(2)
                         st.session_state.page = "ACCEUIL"
                         st.rerun()
             else:
