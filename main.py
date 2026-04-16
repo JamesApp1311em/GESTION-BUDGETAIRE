@@ -757,7 +757,7 @@ elif st.session_state.page == "RESULTATS":
                 }
 
                 # 5. Envoi au Cloud
-                if sauvegarder_ligne("donnees_depenses", new_row):
+                if sauvegarder_ligne("historique_complet", new_row):
                     st.success(f"✅ Enregistré dans le Cloud : {nom_version}")
                     time.sleep(1)
                     st.session_state.page = "MAIN_APP"
