@@ -78,13 +78,22 @@ def charger_table(nom_table):
 def sauvegarder_ligne(nom_table, dictionnaire_donnees):
     """Enregistre une nouvelle ligne dans Supabase"""
     try:
+        # Correction de l'alignement (indentation) ici
         supabase.table(nom_table).insert(dictionnaire_donnees).execute()
         return True
     except Exception as e:
         st.error(f"Erreur d'écriture Cloud ({nom_table}): {e}")
         return False
 
-# --- AJOUTE LES ICI ---
+# --- 5.1 CONSTANTES DES FICHIERS (AJOUTÉ ICI) ---
+FILE_CLIENTS = "clients.csv"
+FILE_DATA = "data.csv"
+FILE_DEP_EPARGNE = "depenses_epargne.csv"
+FILE_MAINTENANCE = "maintenance.txt"
+
+# On active la maintenance si le fichier existe sur le serveur
+if os.path.exists(FILE_MAINTENANCE):
+    is_maintenance = True
 
 def mettre_a_jour_statut(nom_utilisateur, nouveau_statut):
     """Change le statut dans Supabase"""
