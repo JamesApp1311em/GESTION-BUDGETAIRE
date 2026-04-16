@@ -902,6 +902,42 @@ elif st.session_state.page == "PROGRESS":
                     fig1.update_layout(yaxis=dict(range=[0, y_limit_fixe], dtick=intervalle), height=400)
                     st.plotly_chart(fig1, use_container_width=True)
 
+                # --- AJOUT DU GRAPHIQUE DE COMPARAISON (FIG 2) ---
+                    st.write("---")
+                    st.write("### 📊 Comparaison Épargne vs Dépenses")
+                    
+                    fig2 = go.Figure()
+
+                    # Barres pour les Dépenses (Bleu clair)
+                    fig2.add_trace(go.Bar(
+                        x=df_plot[x_axis_label], 
+                        y=df_plot["Total_Depenses"], # Vérifiez si c'est 'total_depenses' en minuscule sur Supabase
+                        name="Dépenses", 
+                        marker_color="#64B5F6"
+                    ))
+
+                    # Barres pour l'Épargne (Bleu foncé)
+                    fig2.add_trace(go.Bar(
+                        x=df_plot[x_axis_label], 
+                        y=df_plot["Epargne"], # Vérifiez si c'est 'epargne_nette' sur Supabase
+                        name="Épargne", 
+                        marker_color="#1976D2"
+                    ))
+
+                    # Mise en forme du graphique groupé
+                    fig2.update_layout(
+                        barmode="group", 
+                        yaxis=dict(
+                            range=[0, y_limit_fixe], 
+                            dtick=intervalle, 
+                            title="Montant $"
+                        ), 
+                        height=400, 
+                        margin=dict(l=50, r=20, t=20, b=20)
+                    )
+
+                    st.plotly_chart(fig2, use_container_width=True)
+
                 # --- 🟠 INTERFACE 2 : GESTION DES DÉPENSES ---
                 else:
                     total_ep_cumulee = data_final["Epargne"].astype(float).sum()
