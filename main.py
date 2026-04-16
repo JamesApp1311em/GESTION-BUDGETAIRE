@@ -217,31 +217,36 @@ elif st.session_state.page == "ACCEUIL":
         u_n = st.text_input("USER NAME", placeholder="Entrez votre nom...", disabled=is_maintenance)
         u_p = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password", disabled=is_maintenance)
 
-        if st.button("🚀 OPEN APP", use_container_width=True, disabled=is_maintenance):
-            df = pd.read_csv(FILE_CLIENTS, dtype=str).fillna("")
-            user_match = df[df["name"].str.strip() == str(u_n).strip()]
+       if st.button("🚀 OPEN APP", use_container_width=True, disabled=is_maintenance):
+            # REMPLACE pd.read_csv PAR CECI :
+            df = charger_table("clients")
+            
+            if not df.empty:
+                # On s'assure que tout est en texte pour la comparaison
+                df = df.astype(str).fillna("")
+                user_match = df[df["name"].str.strip() == str(u_n).strip()]
 
-            if (
-                not user_match.empty
-                and user_match.iloc[0]["pw_open_modify"] == str(u_p).strip()
-            ):
-                if user_match.iloc[0]["status"].lower() in ["true", "active"]:
-                    st.session_state.update(
-                        {
-                            "current_user": u_n,
-                            "user_pw_open": str(u_p).strip(),
-                            "user_pw_adm_extra": user_match.iloc[0][
-                                "pw_adm_print_prog"
-                            ],
-                            "page": "MAIN_APP",
-                        }
-                    )
-                    st.rerun()
+                if (
+                    not user_match.empty
+                    and user_match.iloc[0]["pw_open_modify"] == str(u_p).strip()
+                ):
+                    # Vérification du statut (Active)
+                    if user_match.iloc[0]["status"].lower() in ["true", "active"]:
+                        st.session_state.update(
+                            {
+                                "current_user": u_n,
+                                "user_pw_open": str(u_p).strip(),
+                                "user_pw_adm_extra": user_match.iloc[0]["pw_adm_print_prog"],
+                                "page": "MAIN_APP",
+                            }
+                        )
+                        st.rerun()
+                    else:
+                        st.error("⚠️ Votre compte est bloqué. Contactez l'administrateur.")
                 else:
-                    st.error("⚠️ Votre compte est bloqué. Contactez l'administrateur.")
+                    st.error("❌ Nom d'utilisateur ou mot de passe incorrect.")
             else:
-                st.error("❌ Nom d'utilisateur ou mot de passe incorrect.")
-
+                st.error("❌ Impossible de joindre la base de données ou table vide.")
         st.write("---")
         st.write("### Autres options d'accès")
         col_nav1, col_nav2, col_nav3 = st.columns(3)
