@@ -248,7 +248,7 @@ elif st.session_state.page == "ACCEUIL":
             else:
                 st.error("❌ Impossible de joindre la base de données ou table vide.")
     st.write("---")
-        st.write("### Autres options d'accès")
+        #st.write("### Autres options d'accès")
         col_nav1, col_nav2, col_nav3 = st.columns(3)
         if col_nav1.button("🔑 LOGIN", use_container_width=True, disabled=is_maintenance):
             st.session_state.page = "LOGIN"
