@@ -443,7 +443,7 @@ elif st.session_state.page == "APP_ADM":
 # --- 9. PAGE : MAIN APP (APPLICATION PRINCIPALE) ---
 elif st.session_state.page == "MAIN_APP":
     # MODIFICATION CLOUD : On récupère les données depuis Supabase au lieu du CSV
-    df_h = charger_table("donnees_depenses") 
+    df_h = charger_table("historique_complet") 
     
     if not df_h.empty:
         user_recs = df_h[df_h["Utilisateur"] == st.session_state.current_user].copy()
