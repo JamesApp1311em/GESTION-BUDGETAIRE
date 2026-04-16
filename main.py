@@ -772,7 +772,7 @@ elif st.session_state.page == "VIEW_BASE":
         st.title("🔓 GESTION DE L'HISTORIQUE")
         
         # MODIFICATION CLOUD : Lecture depuis Supabase
-        df_full_h = charger_table("donnees_depenses")
+        df_full_h = charger_table("historique_complet")
         
         if not df_full_h.empty:
             user_data = df_full_h[df_full_h["Utilisateur"] == st.session_state.current_user]
@@ -798,7 +798,7 @@ elif st.session_state.page == "VIEW_BASE":
             if st.button("🗑️ CONFIRMER LA SUPPRESSION", type="secondary"):
                 try:
                     # MODIFICATION CLOUD : Suppression ciblée dans Supabase
-                    supabase.table("donnees_depenses")\
+                    supabase.table("historique_complet")\
                         .delete()\
                         .eq("Utilisateur", st.session_state.current_user)\
                         .eq("Mois", target_del)\
@@ -850,7 +850,7 @@ elif st.session_state.page == "PROGRESS":
                 st.title("📈 PROGRESSION 2" if is_mode_2 else "📈 PROGRESSION 1")
 
             # --- RÉCUPÉRATION DES DONNÉES CLOUD ---
-            df_p = charger_table("donnees_depenses")
+            df_p = charger_table("historique_complet")
             data_user = pd.DataFrame()
             if not df_p.empty:
                 data_user = df_p[df_p["Utilisateur"] == st.session_state.current_user].copy()
