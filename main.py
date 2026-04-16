@@ -331,59 +331,48 @@ elif st.session_state.page == "APP_ADM":
 
         with col_ext:
             if st.button("📂 EXTEND", use_container_width=True):
-                st.session_state.show_extend_table = not st.session_state.get(
-                    "show_extend_table", False
-                )
+                st.session_state.show_extend_table = not st.session_state.get("show_extend_table", False)
 
         with col_dev:
-            label_dev = (
-                "🔒 CACHER MENUS"
-                if st.session_state.get("dev_mode")
-                else "🔓 OPTIONS DEV"
-            )
+            label_dev = "🔒 CACHER MENUS" if st.session_state.get("dev_mode") else "🔓 OPTIONS DEV"
             if st.button(label_dev, use_container_width=True):
                 st.session_state.dev_mode = not st.session_state.get("dev_mode", False)
                 st.rerun()
 
         with col_exp:
-            # Fonction pour créer le ZIP (Modifiée pour inclure les retraits)
+            # FONCTION ZIP SÉCURISÉE (Ne plante plus si un fichier manque)
             def get_all_data_zip():
                 buf = BytesIO()
                 with zipfile.ZipFile(buf, "w") as z:
-                    # On ajoute FILE_DEP_EPARGNE à la liste des fichiers à sauvegarder
+                    # Liste de vos fichiers locaux (vérifiez bien les noms des variables FILE_...)
+                    # J'ai mis FILE_DEP_EPARGNE comme dans votre code
                     for f in [FILE_CLIENTS, FILE_DATA, FILE_DEP_EPARGNE]:
-                        if os.path.exists(f):
+                        if f and os.path.exists(f): # On vérifie si le fichier existe physiquement
                             z.write(f)
                 return buf.getvalue()
 
-            if st.download_button(
+            # On pré-calcule les données pour éviter l'erreur de bouton vide
+            backup_data = get_all_data_zip()
+
+            st.download_button(
                 label="📥 Export",
-                data=get_all_data_zip(),
+                data=backup_data,
                 file_name=f"Backup_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip",
                 mime="application/zip",
                 use_container_width=True
-            ):
-                # Création du verrou de maintenance
-                with open(FILE_MAINTENANCE, "w") as f:
-                    f.write("MAINTENANCE_ACTIVE")
-                st.session_state.page = "ACCEUIL"
-                st.rerun()
+            )
 
-        # --- SECTION IMPORT (SORTIE DES COLONNES POUR LE MOBILE) ---
-        st.write("---") # Petite ligne de séparation
+        # --- SECTION IMPORT ---
+        st.write("---") 
         uploaded_backup = st.file_uploader("Sélectionner le backup ZIP pour restaurer", type="zip")
         
         if uploaded_backup:
-            # 🟢 On affiche un message de succès pour forcer le rafraîchissement sur mobile
             st.success(f"✅ Fichier détecté : {uploaded_backup.name}")
-            
-            # Le bouton prend toute la largeur pour être facile à cliquer sur mobile
             if st.button("📤 LANCER L'IMPORTATION", use_container_width=True, type="primary"):
                 with st.spinner("Restauration en cours..."):
                     with zipfile.ZipFile(uploaded_backup, 'r') as z:
                         z.extractall('.')
                     
-                    # Suppression du verrou de maintenance
                     if os.path.exists(FILE_MAINTENANCE):
                         os.remove(FILE_MAINTENANCE)
                     
@@ -391,39 +380,42 @@ elif st.session_state.page == "APP_ADM":
                     st.session_state.page = "ACCEUIL"
                     st.rerun()
 
+        # --- AFFICHAGE DES TABLES ET UTILISATEURS ---
         if st.session_state.get("show_extend_table"):
             st.write("### Base de données complète des utilisateurs")
-            df_full = pd.read_csv(FILE_CLIENTS, dtype=str)
-            st.dataframe(df_full, use_container_width=True)
+            if os.path.exists(FILE_CLIENTS):
+                df_full = pd.read_csv(FILE_CLIENTS, dtype=str)
+                st.dataframe(df_full, use_container_width=True)
+            else:
+                st.warning("Fichier clients local introuvable.")
             st.write("---")
 
         st.subheader("Liste des comptes et Status")
-        df_adm = pd.read_csv(FILE_CLIENTS, dtype=str).fillna("")
+        # On essaie d'abord de lire le fichier local pour l'affichage
+        if os.path.exists(FILE_CLIENTS):
+            df_adm = pd.read_csv(FILE_CLIENTS, dtype=str).fillna("")
 
-        # --- Dans la boucle d'affichage des utilisateurs ---
-        for idx, row in df_adm.iterrows():
-            with st.container(border=True):
-                c1, c2, c3 = st.columns([2, 1, 1])
-                
-                # Nom de l'utilisateur
-                c1.write(f"👤 **{row['name']}**")
+            for idx, row in df_adm.iterrows():
+                with st.container(border=True):
+                    c1, c2, c3 = st.columns([2, 1, 1])
+                    c1.write(f"👤 **{row['name']}**")
 
-                # Déterminer l'état actuel (sécurité contre les majuscules/minuscules)
-                is_active = str(row["status"]).lower() in ["true", "active"]
-                status_label = "ACTIVE" if is_active else "BLOCKED"
+                    is_active = str(row["status"]).lower() in ["true", "active"]
+                    status_label = "ACTIVE" if is_active else "BLOCKED"
 
-                # Changement de statut via Checkbox (Action Cloud)
-                if c2.checkbox(f"Statut: {status_label}", value=is_active, key=f"chk_{idx}") != is_active:
-                    n_statut = "Active" if not is_active else "Blocked"
-                    if mettre_a_jour_statut(row['name'], n_statut):
-                        st.success(f"Statut de {row['name']} mis à jour !")
-                        st.rerun()
+                    if c2.checkbox(f"Statut: {status_label}", value=is_active, key=f"chk_{idx}") != is_active:
+                        n_statut = "Active" if not is_active else "Blocked"
+                        if mettre_a_jour_statut(row['name'], n_statut):
+                            st.success(f"Statut mis à jour !")
+                            st.rerun()
 
-                # Suppression de l'utilisateur (Action Cloud)
-                if c3.button("🗑️", key=f"btn_del_{idx}"):
-                    if supprimer_utilisateur(row['name']):
-                        st.warning(f"Utilisateur {row['name']} supprimé.")
-                        st.rerun()
+                    if c3.button("🗑️", key=f"btn_del_{idx}"):
+                        if supprimer_utilisateur(row['name']):
+                            st.warning(f"Utilisateur supprimé.")
+                            st.rerun()
+        else:
+            st.error("Impossible d'afficher la liste : le fichier local 'clients.csv' est absent.")
+
         if st.button("⬅️ QUITTER L'ADMINISTRATION", use_container_width=True):
             st.session_state.page = "ACCEUIL"
             st.rerun()
