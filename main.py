@@ -703,7 +703,7 @@ elif st.session_state.page == "RESULTATS":
         # --- BOUTON SAUVEGARDE CLOUD ---
         if st.button("💾 SAUVEGARDER CETTE VERSION", use_container_width=True):
             # 1. On récupère l'historique depuis Supabase
-            df_hist = charger_table("donnees_depenses")
+            df_hist = charger_table("historique_complet")
             current_user = st.session_state.current_user
 
             # 2. Logique de détection de doublons (exactement comme avant)
