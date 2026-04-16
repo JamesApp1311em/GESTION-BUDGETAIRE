@@ -7,7 +7,14 @@ from fpdf import FPDF
 import datetime
 import zipfile
 from io import BytesIO
-from supabase import create_client, Client 
+from supabase import create_client, Client
+
+# --- INITIALISATION DE LA VARIABLE DE MAINTENANCE ---
+# On la définit ici pour qu'elle soit accessible dans toutes les pages
+is_maintenance = False 
+
+# --- LE RESTE DE TON CODE (Config page, connexion Supabase, etc.) ---
+st.set_page_config(page_title="Gestion Budgétaire", layout="wide")
 
 # --- 1. CONFIGURATION DE LA PAGE ---
 st.set_page_config(
