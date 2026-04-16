@@ -753,7 +753,7 @@ elif st.session_state.page == "RESULTATS":
                     "Autres": float(st.session_state.get("n_aut", 0)),
                     "Total_Depenses": float(st.session_state.get("total_dep", 0)),
                     "Epargne": float(st.session_state.get("epargne", 0)),
-                    "Date_Enregistrement": pd.Timestamp.now().strftime("%d/%m/%Y %H:%M"),
+                    "Date_Enregistrement": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
                 }
 
                 # 5. Envoi au Cloud
