@@ -263,6 +263,7 @@ elif st.session_state.page == "ACCEUIL":
 
 # --- 6. PAGE : LOGIN (CRÉATION DE COMPTE) ---
 elif st.session_state.page == "LOGIN":
+    # Vérification du mode maintenance au tout début
     if is_maintenance:
         st.error("🚨 MAINTENANCE EN COURS")
         if st.button("RETOUR"):
@@ -277,19 +278,22 @@ elif st.session_state.page == "LOGIN":
         )
         st.info("Veuillez définir vos informations d'identification selon la nomenclature du système.")
 
+        # Champs de saisie
         new_n = st.text_input("USER NAME")
         new_p1 = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password")
         new_p2 = st.text_input("PASSWORD (ADM / PRINT / PROGRESS)", type="password")
         new_p3 = st.text_input("PASSWORD (USER ADM)", type="password")
 
-        # --- ICI LES BOUTONS ONT DES ESPACES POUR RESTER DANS LE BLOC LOGIN ---
+        # Bouton d'enregistrement
         if st.button("💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="primary"):
             if new_n and new_p1 and new_p2 and new_p3:
+                # On vérifie l'existence sur Supabase
                 df_clients = charger_table("clients")
                 
                 if not df_clients.empty and new_n in df_clients["name"].values:
                     st.error("❌ Ce nom d'utilisateur existe déjà sur le Cloud.")
                 else:
+                    # Préparation des données (L'ID est géré automatiquement par Supabase)
                     new_entry = {
                         "name": new_n,
                         "pw_open_modify": new_p1,
@@ -298,6 +302,7 @@ elif st.session_state.page == "LOGIN":
                         "status": "Active",
                     }
                     
+                    # Appel de la fonction de sauvegarde Cloud
                     succes = sauvegarder_ligne("clients", new_entry)
                     
                     if succes:
@@ -308,6 +313,7 @@ elif st.session_state.page == "LOGIN":
             else:
                 st.warning("⚠️ Veuillez remplir tous les champs obligatoires.")
 
+        # Bouton de retour
         if st.button("⬅️ RETOUR À L'ACCUEIL", use_container_width=True):
             st.session_state.page = "ACCEUIL"
             st.rerun()
