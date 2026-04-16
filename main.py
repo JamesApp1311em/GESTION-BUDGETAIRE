@@ -299,7 +299,7 @@ if st.button("💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="p
             else:
                 st.warning("⚠️ Veuillez remplir tous les champs obligatoires.")
 
-        if st.button("⬅️ RETOUR À L'ACCUEIL", use_container_width=True):
+if st.button("⬅️ RETOUR À L'ACCUEIL", use_container_width=True):
             st.session_state.page = "ACCEUIL"
             st.rerun()
 
