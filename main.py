@@ -77,6 +77,26 @@ def sauvegarder_ligne(nom_table, dictionnaire_donnees):
         st.error(f"Erreur d'écriture Cloud ({nom_table}): {e}")
         return False
 
+# --- AJOUTE LES ICI ---
+
+def mettre_a_jour_statut(nom_utilisateur, nouveau_statut):
+    """Change le statut dans Supabase"""
+    try:
+        supabase.table("clients").update({"status": nouveau_statut}).eq("name", nom_utilisateur).execute()
+        return True
+    except Exception as e:
+        st.error(f"Erreur de mise à jour: {e}")
+        return False
+
+def supprimer_utilisateur(nom_utilisateur):
+    """Supprime un utilisateur de Supabase"""
+    try:
+        supabase.table("clients").delete().eq("name", nom_utilisateur).execute()
+        return True
+    except Exception as e:
+        st.error(f"Erreur de suppression: {e}")
+        return False
+
 # --- 6. FONCTION PDF (COMPLÈTE) ---
 def create_pdf(row):
     pdf = FPDF()
@@ -249,13 +269,16 @@ elif st.session_state.page == "LOGIN":
         new_p3 = st.text_input("PASSWORD (USER ADM)", type="password")
 
         if st.button(
-            "💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="primary"
-        ):
+            if st.button("💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="primary"):
             if new_n and new_p1 and new_p2 and new_p3:
-                df_clients = pd.read_csv(FILE_CLIENTS, dtype=str)
-                if new_n in df_clients["name"].values:
-                    st.error("Ce nom d'utilisateur existe déjà.")
+                # 1. On récupère la liste des clients depuis le Cloud
+                df_clients = charger_table("clients")
+                
+                # 2. On vérifie si le nom existe déjà dans la base
+                if not df_clients.empty and new_n in df_clients["name"].values:
+                    st.error("❌ Ce nom d'utilisateur existe déjà sur le Cloud.")
                 else:
+                    # 3. Préparation des données
                     new_entry = {
                         "name": new_n,
                         "pw_open_modify": new_p1,
@@ -263,14 +286,17 @@ elif st.session_state.page == "LOGIN":
                         "pw_user_adm": new_p3,
                         "status": "Active",
                     }
-                    pd.concat(
-                        [df_clients, pd.DataFrame([new_entry])], ignore_index=True
-                    ).to_csv(FILE_CLIENTS, index=False)
-                    st.success(f"Compte pour '{new_n}' créé avec succès !")
-                    st.session_state.page = "ACCEUIL"
-                    st.rerun()
+                    
+                    # 4. Envoi vers Supabase via ta fonction
+                    succes = sauvegarder_ligne("clients", new_entry)
+                    
+                    if succes:
+                        st.success(f"✅ Compte pour '{new_n}' créé avec succès sur le Cloud !")
+                        time.sleep(2) # On laisse le temps de lire le message
+                        st.session_state.page = "ACCEUIL"
+                        st.rerun()
             else:
-                st.warning("Veuillez remplir tous les champs obligatoires.")
+                st.warning("⚠️ Veuillez remplir tous les champs obligatoires.")
 
         if st.button("⬅️ RETOUR À L'ACCUEIL", use_container_width=True):
             st.session_state.page = "ACCEUIL"
@@ -374,35 +400,42 @@ elif st.session_state.page == "APP_ADM":
         st.subheader("Liste des comptes et Status")
         df_adm = pd.read_csv(FILE_CLIENTS, dtype=str).fillna("")
 
+        # --- Dans la boucle d'affichage des utilisateurs ---
         for idx, row in df_adm.iterrows():
             with st.container(border=True):
                 c1, c2, c3 = st.columns([2, 1, 1])
+                
+                # Nom de l'utilisateur
                 c1.write(f"👤 **{row['name']}**")
 
-                is_active = row["status"].lower() in ["true", "active"]
+                # Déterminer l'état actuel (sécurité contre les majuscules/minuscules)
+                is_active = str(row["status"]).lower() in ["true", "active"]
                 status_label = "ACTIVE" if is_active else "BLOCKED"
 
-                if (
-                    c2.checkbox(
-                        f"Statut: {status_label}", value=is_active, key=f"chk_{idx}"
-                    )
-                    != is_active
-                ):
-                    df_adm.at[idx, "status"] = "Active" if not is_active else "Blocked"
-                    df_adm.to_csv(FILE_CLIENTS, index=False)
-                    st.rerun()
+                # Changement de statut via Checkbox (Action Cloud)
+                if c2.checkbox(f"Statut: {status_label}", value=is_active, key=f"chk_{idx}") != is_active:
+                    n_statut = "Active" if not is_active else "Blocked"
+                    if mettre_a_jour_statut(row['name'], n_statut):
+                        st.success(f"Statut de {row['name']} mis à jour !")
+                        st.rerun()
 
+                # Suppression de l'utilisateur (Action Cloud)
                 if c3.button("🗑️", key=f"btn_del_{idx}"):
-                    df_adm.drop(idx).to_csv(FILE_CLIENTS, index=False)
-                    st.rerun()
+                    if supprimer_utilisateur(row['name']):
+                        st.warning(f"Utilisateur {row['name']} supprimé.")
+                        st.rerun()
         if st.button("⬅️ QUITTER L'ADMINISTRATION", use_container_width=True):
             st.session_state.page = "ACCEUIL"
             st.rerun()
 # --- 9. PAGE : MAIN APP (APPLICATION PRINCIPALE) ---
 elif st.session_state.page == "MAIN_APP":
-    # Correction : Ces lignes doivent être indentées pour appartenir au elif
-    df_h = pd.read_csv(FILE_DATA)
-    user_recs = df_h[df_h["Utilisateur"] == st.session_state.current_user].copy()
+    # MODIFICATION CLOUD : On récupère les données depuis Supabase au lieu du CSV
+    df_h = charger_table("donnees_depenses") 
+    
+    if not df_h.empty:
+        user_recs = df_h[df_h["Utilisateur"] == st.session_state.current_user].copy()
+    else:
+        user_recs = pd.DataFrame()
 
     # --- BOUTON DE CONTRÔLE (MENU / RETOUR / DÉCONNEXION) ---
     if not st.session_state.show_menu:
@@ -436,9 +469,7 @@ elif st.session_state.page == "MAIN_APP":
         # --- COLONNE 1 : SÉLECTION DU MOIS ---
         with col1:
             if st.button("📅 SELECT MONTH", use_container_width=True):
-                st.session_state.show_date_picker = not st.session_state.get(
-                    "show_date_picker", False
-                )
+                st.session_state.show_date_picker = not st.session_state.get("show_date_picker", False)
 
             if st.session_state.get("show_date_picker"):
                 with st.container(border=True):
@@ -449,10 +480,12 @@ elif st.session_state.page == "MAIN_APP":
                     m_c = st.selectbox("Mois", m_list)
                     a_c = st.selectbox("Année", [str(a) for a in range(2024, 2100)])
 
-                    versions = user_recs[
-                        (user_recs["Mois"].str.startswith(m_c))
-                        & (user_recs["Annee"].astype(str) == a_c)
-                    ]
+                    versions = pd.DataFrame()
+                    if not user_recs.empty:
+                        versions = user_recs[
+                            (user_recs["Mois"].str.startswith(m_c))
+                            & (user_recs["Annee"].astype(str) == a_c)
+                        ]
 
                     if not versions.empty:
                         v_choisie = st.selectbox(
@@ -544,7 +577,6 @@ elif st.session_state.page == "MAIN_APP":
 
     else:
         # --- INTERFACE 2 : LE BULLETIN DE DÉPENSES ---
-        # TOUT CE BLOC EST MAINTENANT INDENTÉ SOUS LE ELSE
         with st.container(border=True):
             st.markdown(
                 "<h1 style='text-align: center; color: #2E7D32;'>💰 BULLETIN DES DEPENSES</h1>",
@@ -555,10 +587,12 @@ elif st.session_state.page == "MAIN_APP":
             L = st.session_state.get("inputs_locked", True)
 
             if sel_m_base and L:
-                versions_du_mois = user_recs[
-                    (user_recs["Mois"].str.startswith(sel_m_base))
-                    & (user_recs["Annee"].astype(str) == st.session_state.get("sel_annee"))
-                ]
+                versions_du_mois = pd.DataFrame()
+                if not user_recs.empty:
+                    versions_du_mois = user_recs[
+                        (user_recs["Mois"].str.startswith(sel_m_base))
+                        & (user_recs["Annee"].astype(str) == st.session_state.get("sel_annee"))
+                    ]
 
                 def ext_v(n):
                     return int(n.split("Mod")[-1]) if "Mod" in n else 0
@@ -653,109 +687,68 @@ elif st.session_state.page == "RESULTATS":
         else:
             st.error(f"Déficit de {abs(st.session_state.get('epargne', 0))} $.")
 
+        # --- BOUTON SAUVEGARDE CLOUD ---
         if st.button("💾 SAUVEGARDER CETTE VERSION", use_container_width=True):
-            if not os.path.exists(FILE_DATA):
-                pd.DataFrame(
-                    columns=[
-                        "Utilisateur",
-                        "Mois",
-                        "Annee",
-                        "Revenu",
-                        "Loyer",
-                        "Scolarite",
-                        "Ration",
-                        "Dette",
-                        "Poche",
-                        "Assistance",
-                        "Autres",
-                        "Total_Depenses",
-                        "Epargne",
-                        "Date_Enregistrement",
-                    ]
-                ).to_csv(FILE_DATA, index=False)
-
-            df_hist = pd.read_csv(FILE_DATA)
+            # 1. On récupère l'historique depuis Supabase
+            df_hist = charger_table("donnees_depenses")
             current_user = st.session_state.current_user
 
-            doublon_exact = df_hist[
-                (df_hist["Utilisateur"] == current_user)
-                & (df_hist["Annee"].astype(str) == annee_sel)
-                & (
-                    df_hist["Revenu"].astype(float)
-                    == float(st.session_state.get("n_rev", 0))
-                )
-                & (
-                    df_hist["Loyer"].astype(float)
-                    == float(st.session_state.get("n_loy", 0))
-                )
-                & (
-                    df_hist["Scolarite"].astype(float)
-                    == float(st.session_state.get("n_sco", 0))
-                )
-                & (
-                    df_hist["Ration"].astype(float)
-                    == float(st.session_state.get("n_rat", 0))
-                )
-                & (
-                    df_hist["Dette"].astype(float)
-                    == float(st.session_state.get("n_det", 0))
-                )
-                & (
-                    df_hist["Poche"].astype(float)
-                    == float(st.session_state.get("n_poc", 0))
-                )
-                & (
-                    df_hist["Assistance"].astype(float)
-                    == float(st.session_state.get("n_ast", 0))
-                )
-                & (
-                    df_hist["Autres"].astype(float)
-                    == float(st.session_state.get("n_aut", 0))
-                )
-                & (df_hist["Mois"].str.contains(nom_mois_base))
-            ]
+            # 2. Logique de détection de doublons (exactement comme avant)
+            doublon_exact = pd.DataFrame()
+            if not df_hist.empty:
+                doublon_exact = df_hist[
+                    (df_hist["Utilisateur"] == current_user)
+                    & (df_hist["Annee"].astype(str) == annee_sel)
+                    & (df_hist["Revenu"].astype(float) == float(st.session_state.get("n_rev", 0)))
+                    & (df_hist["Loyer"].astype(float) == float(st.session_state.get("n_loy", 0)))
+                    & (df_hist["Scolarite"].astype(float) == float(st.session_state.get("n_sco", 0)))
+                    & (df_hist["Ration"].astype(float) == float(st.session_state.get("n_rat", 0)))
+                    & (df_hist["Dette"].astype(float) == float(st.session_state.get("n_det", 0)))
+                    & (df_hist["Poche"].astype(float) == float(st.session_state.get("n_poc", 0)))
+                    & (df_hist["Assistance"].astype(float) == float(st.session_state.get("n_ast", 0)))
+                    & (df_hist["Autres"].astype(float) == float(st.session_state.get("n_aut", 0)))
+                    & (df_hist["Mois"].str.contains(nom_mois_base))
+                ]
 
             if not doublon_exact.empty:
                 st.warning("⚠️ Données déjà présentes. Aucune modification détectée.")
             else:
+                # 3. Calcul de la version (Mod0, Mod1...)
                 base_combinee = f"{nom_mois_base}{annee_sel}"
-                exist_versions = df_hist[
-                    (df_hist["Utilisateur"] == current_user)
-                    & (df_hist["Mois"].str.startswith(base_combinee))
-                ]
+                nom_version = base_combinee
+                
+                if not df_hist.empty:
+                    exist_versions = df_hist[
+                        (df_hist["Utilisateur"] == current_user)
+                        & (df_hist["Mois"].str.startswith(base_combinee))
+                    ]
+                    if not exist_versions.empty:
+                        nom_version = f"{base_combinee}Mod{len(exist_versions)}"
 
-                nom_version = (
-                    f"{base_combinee}Mod{len(exist_versions)}"
-                    if not exist_versions.empty
-                    else base_combinee
-                )
-
+                # 4. Préparation du dictionnaire pour Supabase
                 new_row = {
                     "Utilisateur": current_user,
                     "Mois": nom_version,
                     "Annee": annee_sel,
-                    "Revenu": st.session_state.get("n_rev", 0),
-                    "Loyer": st.session_state.get("n_loy", 0),
-                    "Scolarite": st.session_state.get("n_sco", 0),
-                    "Ration": st.session_state.get("n_rat", 0),
-                    "Dette": st.session_state.get("n_det", 0),
-                    "Poche": st.session_state.get("n_poc", 0),
-                    "Assistance": st.session_state.get("n_ast", 0),
-                    "Autres": st.session_state.get("n_aut", 0),
-                    "Total_Depenses": st.session_state.get("total_dep", 0),
-                    "Epargne": st.session_state.get("epargne", 0),
-                    "Date_Enregistrement": pd.Timestamp.now().strftime(
-                        "%d/%m/%Y %H:%M"
-                    ),
+                    "Revenu": float(st.session_state.get("n_rev", 0)),
+                    "Loyer": float(st.session_state.get("n_loy", 0)),
+                    "Scolarite": float(st.session_state.get("n_sco", 0)),
+                    "Ration": float(st.session_state.get("n_rat", 0)),
+                    "Dette": float(st.session_state.get("n_det", 0)),
+                    "Poche": float(st.session_state.get("n_poc", 0)),
+                    "Assistance": float(st.session_state.get("n_ast", 0)),
+                    "Autres": float(st.session_state.get("n_aut", 0)),
+                    "Total_Depenses": float(st.session_state.get("total_dep", 0)),
+                    "Epargne": float(st.session_state.get("epargne", 0)),
+                    "Date_Enregistrement": pd.Timestamp.now().strftime("%d/%m/%Y %H:%M"),
                 }
 
-                pd.concat([df_hist, pd.DataFrame([new_row])], ignore_index=True).to_csv(
-                    FILE_DATA, index=False
-                )
-                st.success(f"✅ Enregistré : {nom_version}")
-                time.sleep(1)
-                st.session_state.page = "MAIN_APP"
-                st.rerun()
+                # 5. Envoi au Cloud
+                if sauvegarder_ligne("donnees_depenses", new_row):
+                    st.success(f"✅ Enregistré dans le Cloud : {nom_version}")
+                    time.sleep(1)
+                    st.session_state.page = "MAIN_APP"
+                    st.rerun()
 
         if st.button("⬅️ RETOUR"):
             st.session_state.page = "MAIN_APP"
@@ -764,49 +757,57 @@ elif st.session_state.page == "RESULTATS":
 elif st.session_state.page == "VIEW_BASE":
     with st.container(border=True):
         st.title("🔓 GESTION DE L'HISTORIQUE")
-        df_full_h = pd.read_csv(FILE_DATA)
-        user_data = df_full_h[df_full_h["Utilisateur"] == st.session_state.current_user]
+        
+        # MODIFICATION CLOUD : Lecture depuis Supabase
+        df_full_h = charger_table("donnees_depenses")
+        
+        if not df_full_h.empty:
+            user_data = df_full_h[df_full_h["Utilisateur"] == st.session_state.current_user]
+        else:
+            user_data = pd.DataFrame()
 
         st.write(f"Enregistrements pour : {st.session_state.current_user}")
         st.dataframe(user_data, use_container_width=True)
 
         st.write("---")
         st.subheader("Supprimer une entrée")
+        
+        # On vérifie s'il y a des données à supprimer
+        list_versions = ["---"]
+        if not user_data.empty:
+            list_versions += user_data["Mois"].tolist()
+            
         target_del = st.selectbox(
-            "Sélectionner la version à effacer", ["---"] + user_data["Mois"].tolist()
+            "Sélectionner la version à effacer", list_versions
         )
 
         if target_del != "---":
             if st.button("🗑️ CONFIRMER LA SUPPRESSION", type="secondary"):
-                df_full_h = df_full_h[
-                    ~(
-                        (df_full_h["Utilisateur"] == st.session_state.current_user)
-                        & (df_full_h["Mois"] == target_del)
-                    )
-                ]
-                df_full_h.to_csv(FILE_DATA, index=False)
-                st.warning(f"Version {target_del} supprimée.")
-                st.rerun()
+                try:
+                    # MODIFICATION CLOUD : Suppression ciblée dans Supabase
+                    supabase.table("donnees_depenses")\
+                        .delete()\
+                        .eq("Utilisateur", st.session_state.current_user)\
+                        .eq("Mois", target_del)\
+                        .execute()
+                    
+                    st.warning(f"Version {target_del} supprimée du Cloud.")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erreur lors de la suppression : {e}")
 
         if st.button("⬅️ RETOUR"):
             st.session_state.page = "MAIN_APP"
             st.rerun()
-
 # --- 12. PAGE : PROGRESSION (TRI PRÉCIS DATE + HEURE) ---
 elif st.session_state.page == "PROGRESS":
     import time
-
-    FILE_DATA = "historique_complet.csv"
-    FILE_DEP_EPARGNE = "depenses_epargne.csv"
+    import plotly.graph_objects as go
 
     # Initialisation de la variable d'état pour la confirmation de suppression
     if "delete_confirm_idx" not in st.session_state:
         st.session_state.delete_confirm_idx = None
-
-    if not os.path.exists(FILE_DEP_EPARGNE):
-        pd.DataFrame(columns=["ID", "Utilisateur", "Raison", "Montant", "Date"]).to_csv(
-            FILE_DEP_EPARGNE, index=False
-        )
 
     with st.container(border=True):
         if not st.session_state.get("prog_access_granted", False):
@@ -833,19 +834,16 @@ elif st.session_state.page == "PROGRESS":
                     st.session_state.mode_prog2 = not is_mode_2
                     st.rerun()
             with col_nav_titre:
-                st.title(
-                    "📈 ANALYSE DE PROGRESSION 2"
-                    if is_mode_2
-                    else "📈 ANALYSE DE PROGRESSION 1"
-                )
+                st.title("📈 PROGRESSION 2" if is_mode_2 else "📈 PROGRESSION 1")
 
-            df_p = pd.read_csv(FILE_DATA)
-            data_user = df_p[
-                df_p["Utilisateur"] == st.session_state.current_user
-            ].copy()
+            # --- RÉCUPÉRATION DES DONNÉES CLOUD ---
+            df_p = charger_table("donnees_depenses")
+            data_user = pd.DataFrame()
+            if not df_p.empty:
+                data_user = df_p[df_p["Utilisateur"] == st.session_state.current_user].copy()
 
             if not data_user.empty:
-                # 1. Extraction de la base du mois (ex: JANVIER2024)
+                # 1. Extraction de la base du mois
                 data_user["Mois_Base"] = data_user["Mois"].str.split("Mod").str[0]
 
                 # 2. CONVERSION PRÉCISE (Date + Heure)
@@ -854,121 +852,91 @@ elif st.session_state.page == "PROGRESS":
                 )
                 data_user = data_user.dropna(subset=["Date_Enregistrement"])
 
-                # 3. TRI CHRONOLOGIQUE PAR SECONDE
-                data_user = data_user.sort_values(
-                    by="Date_Enregistrement", ascending=True
-                )
-
-                # 4. FILTRAGE : On ne garde que la dernière version (keep='last')
-                data_final = data_user.drop_duplicates(
-                    subset=["Mois_Base", "Annee"], keep="last"
-                )
+                # 3. TRI CHRONOLOGIQUE ET FILTRAGE DERNIÈRE VERSION
+                data_user = data_user.sort_values(by="Date_Enregistrement", ascending=True)
+                data_final = data_user.drop_duplicates(subset=["Mois_Base", "Annee"], keep="last")
 
                 # --- 🟢 INTERFACE 1 : GRAPHIQUES ---
                 if not is_mode_2:
-                    import plotly.graph_objects as go
-
                     c_f1, c_f2, c_f3 = st.columns(3)
-                    type_graph = c_f1.selectbox(
-                        "Type de graphique", ["Courbe", "Barre", "Aire", "Points"]
-                    )
-                    periode = c_f2.selectbox(
-                        "Période d'analyse", ["Par Mois", "Par Année"]
-                    )
-                    intervalle = c_f3.selectbox(
-                        "Échelle (Palier)", [50, 100, 200, 500, 1000], index=3
-                    )
+                    type_graph = c_f1.selectbox("Type", ["Courbe", "Barre", "Aire", "Points"])
+                    periode = c_f2.selectbox("Période", ["Par Mois", "Par Année"])
+                    intervalle = c_f3.selectbox("Échelle", [50, 100, 200, 500, 1000], index=3)
 
-                    # Préparation des données
                     if periode == "Par Année":
-                        df_plot = (
-                            data_final.groupby("Annee")[
-                                ["Epargne", "Total_Depenses", "Revenu"]
-                            ]
-                            .sum()
-                            .reset_index()
-                        )
+                        df_plot = data_final.groupby("Annee")[["Epargne", "Total_Depenses", "Revenu"]].sum().reset_index()
                         x_axis_label = "Annee"
                     else:
                         df_plot = data_final.copy()
                         x_axis_label = "Mois_Base"
 
-                    # CALCUL DE LA LIMITE STRICTE
-                    val_max = float(
-                        df_plot[["Epargne", "Total_Depenses", "Revenu"]].max().max()
-                    )
+                    val_max = float(df_plot[["Epargne", "Total_Depenses", "Revenu"]].max().max() if not df_plot.empty else 100)
                     y_limit_fixe = ((val_max // intervalle) + 2) * intervalle
 
-                    st.write(f"### Évolution de l'Épargne ({periode})")
-
+                    st.write(f"### Évolution de l'Épargne")
                     fig1 = go.Figure()
                     color_epargne = "#2e7d32"
 
                     if type_graph == "Barre":
-                        fig1.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Epargne"], marker_color=color_epargne, name="Épargne"))
+                        fig1.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Epargne"], marker_color=color_epargne))
                     elif type_graph == "Aire":
-                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], fill="tozeroy", line=dict(color=color_epargne), name="Épargne"))
+                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], fill="tozeroy", line=dict(color=color_epargne)))
                     elif type_graph == "Points":
-                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], mode="markers", marker=dict(size=12, color=color_epargne), name="Épargne"))
-                    else:  # Courbe
-                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], mode="lines+markers", line=dict(color=color_epargne, width=3), name="Épargne"))
+                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], mode="markers", marker=dict(size=12, color=color_epargne)))
+                    else:
+                        fig1.add_trace(go.Scatter(x=df_plot[x_axis_label], y=df_plot["Epargne"], mode="lines+markers", line=dict(color=color_epargne, width=3)))
 
-                    fig1.update_layout(yaxis=dict(range=[0, y_limit_fixe], dtick=intervalle, title="Montant $"), margin=dict(l=50, r=20, t=20, b=20), height=400)
+                    fig1.update_layout(yaxis=dict(range=[0, y_limit_fixe], dtick=intervalle), height=400)
                     st.plotly_chart(fig1, use_container_width=True)
-
-                    st.write("### Comparaison Épargne vs Dépenses")
-                    fig2 = go.Figure()
-                    fig2.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Total_Depenses"], name="Dépenses", marker_color="#64B5F6"))
-                    fig2.add_trace(go.Bar(x=df_plot[x_axis_label], y=df_plot["Epargne"], name="Épargne", marker_color="#1976D2"))
-                    fig2.update_layout(barmode="group", yaxis=dict(range=[0, y_limit_fixe], dtick=intervalle, title="Montant $"), height=400, margin=dict(l=50, r=20, t=20, b=20))
-                    st.plotly_chart(fig2, use_container_width=True)
 
                 # --- 🟠 INTERFACE 2 : GESTION DES DÉPENSES ---
                 else:
                     total_ep_cumulee = data_final["Epargne"].astype(float).sum()
-                    df_dep_file = pd.read_csv(FILE_DEP_EPARGNE)
-                    user_deps = df_dep_file[df_dep_file["Utilisateur"] == st.session_state.current_user].reset_index(drop=True)
-                    total_sorties = user_deps["Montant"].sum()
+                    
+                    # RÉCUPÉRATION DES RETRAITS DEPUIS SUPABASE
+                    df_dep_cloud = charger_table("depenses_epargne")
+                    user_deps = pd.DataFrame()
+                    if not df_dep_cloud.empty:
+                        user_deps = df_dep_cloud[df_dep_cloud["Utilisateur"] == st.session_state.current_user].reset_index(drop=True)
+                    
+                    total_sorties = user_deps["Montant"].astype(float).sum() if not user_deps.empty else 0
                     solde_actuel = total_ep_cumulee - total_sorties
 
                     c1, c2 = st.columns(2)
                     with c1:
-                        st.markdown(f"""<div style="background-color:#0d47a1; color:white; padding:10px; border-radius:5px; border-left:5px solid #1565c0;"><small>TOTAL ÉPARGNE CUMULÉE</small><br><span style="font-size:20px; font-weight:bold;">{total_ep_cumulee:,.2f} $</span></div>""", unsafe_allow_html=True)
+                        st.info(f"TOTAL ÉPARGNE : {total_ep_cumulee:,.2f} $")
                     with c2:
-                        st.markdown(f"""<div style="background-color:#1b5e20; color:white; padding:10px; border-radius:5px; border-left:5px solid #2e7d32;"><small>SOLDE ACTUEL</small><br><span style="font-size:20px; font-weight:bold;">{solde_actuel:,.2f} $</span></div>""", unsafe_allow_html=True)
+                        st.success(f"SOLDE ACTUEL : {solde_actuel:,.2f} $")
 
-                    st.write("")
-                    if st.button("💸 ENREGISTRER UNE DÉPENSE SUR ÉPARGNE", use_container_width=True):
+                    if st.button("💸 ENREGISTRER UN RETRAIT", use_container_width=True):
                         st.session_state.show_f = not st.session_state.get("show_f", False)
-                        st.session_state.delete_confirm_idx = None
                         st.rerun()
 
                     if st.session_state.get("show_f"):
-                        # Demande 3 : clear_on_submit=True
                         with st.form("form_dep_epargne", clear_on_submit=True):
-                            st.subheader("Saisie du retrait")
-                            f_rai = st.text_input("Raison", placeholder="Saisir le motif")
-                            f_mon = st.number_input("Montant ($)", min_value=0.0, step=1.0)
-                            submit = st.form_submit_button("✅ CONFIRMER LE RETRAIT")
-
-                            if submit:
+                            f_rai = st.text_input("Raison")
+                            f_mon = st.number_input("Montant ($)", min_value=0.0)
+                            if st.form_submit_button("✅ CONFIRMER LE RETRAIT"):
                                 if f_rai and f_mon > 0:
                                     if f_mon > solde_actuel:
-                                        st.error(f"❌ Solde insuffisant")
+                                        st.error("Solde insuffisant")
                                     else:
-                                        new_id = int(time.time())
-                                        new_d = pd.DataFrame([{"ID": new_id, "Utilisateur": st.session_state.current_user, "Raison": f_rai, "Montant": f_mon, "Date": pd.Timestamp.now().strftime("%d/%m/%Y")}])
-                                        pd.concat([df_dep_file, new_d], ignore_index=True).to_csv(FILE_DEP_EPARGNE, index=False)
-                                        st.success("Retrait enregistré.")
-                                        time.sleep(1)
-                                        st.rerun()
-                                else:
-                                    st.warning("Veuillez remplir tous les champs.")
+                                        row_retrait = {
+                                            "Utilisateur": st.session_state.current_user,
+                                            "Raison": f_rai,
+                                            "Montant": float(f_mon),
+                                            "Date": pd.Timestamp.now().strftime("%d/%m/%Y")
+                                        }
+                                        if sauvegarder_ligne("depenses_epargne", row_retrait):
+                                            st.success("Retrait enregistré au Cloud.")
+                                            time.sleep(1)
+                                            st.rerun()
 
                     st.write("### 📂 Historique des retraits")
                     if not user_deps.empty:
-                        list_display = [f"{i + 1}. {r['Raison']} | {r['Montant']}$ | {r['Date']}" for i, r in user_deps.iterrows()]
-                        sel_idx = st.selectbox("Sélectionner un retrait", range(len(list_display)), format_func=lambda x: list_display[x])
+                        # On crée une liste pour le selectbox (Utilise l'ID Supabase si présent, sinon l'index)
+                        list_display = [f"{i+1}. {r['Raison']} | {r['Montant']}$" for i, r in user_deps.iterrows()]
+                        sel_idx = st.selectbox("Sélectionner", range(len(list_display)), format_func=lambda x: list_display[x])
 
                         if st.button("🗑️ SUPPRIMER CE RETRAIT", use_container_width=True):
                             st.session_state.delete_confirm_idx = sel_idx
@@ -976,32 +944,27 @@ elif st.session_state.page == "PROGRESS":
 
                         if st.session_state.get("delete_confirm_idx") == sel_idx:
                             with st.container(border=True):
-                                st.warning(f"⚠️ Voulez-vous réellement supprimer le retrait n°{sel_idx + 1} ?")
-                                confirm_check = st.checkbox("Cocher pour VALIDER la suppression", key="check_del_val")
-                                c_confirm_btn1, c_confirm_btn2 = st.columns(2)
-                                with c_confirm_btn1:
-                                    if confirm_check:
-                                        if st.button("❌ CONFIRMER DÉFINITIVEMENT", type="primary", use_container_width=True):
-                                            real_id = user_deps.iloc[sel_idx]["ID"]
-                                            df_temp = pd.read_csv(FILE_DEP_EPARGNE)
-                                            df_temp[df_temp["ID"] != real_id].to_csv(FILE_DEP_EPARGNE, index=False)
-                                            st.session_state.delete_confirm_idx = None
-                                            st.success("Retrait supprimé.")
-                                            time.sleep(1)
-                                            st.rerun()
-                                with c_confirm_btn2:
-                                    if st.button("↩️ ANNULER", use_container_width=True):
-                                        st.session_state.delete_confirm_idx = None
-                                        st.rerun()
+                                st.warning("Confirmer la suppression ?")
+                                if st.button("❌ OUI, SUPPRIMER"):
+                                    # Suppression Cloud par Raison et Montant (ou ID si tu en as un)
+                                    row_to_del = user_deps.iloc[sel_idx]
+                                    supabase.table("depenses_epargne").delete()\
+                                        .eq("Utilisateur", st.session_state.current_user)\
+                                        .eq("Raison", row_to_del["Raison"])\
+                                        .eq("Montant", row_to_del["Montant"]).execute()
+                                    
+                                    st.session_state.delete_confirm_idx = None
+                                    st.success("Supprimé.")
+                                    time.sleep(1)
+                                    st.rerun()
                     else:
-                        st.info("Aucun retrait effectué.")
+                        st.info("Aucun retrait.")
 
             else:
                 st.warning("Données insuffisantes.")
 
-            # Demande 1 : Bouton Quitter TOUJOURS visible (en bas)
             st.write("---")
-            if st.button("🔒 VERROUILLER ET QUITTER", use_container_width=True, key="exit_prog_final"):
+            if st.button("🔒 VERROUILLER ET QUITTER", use_container_width=True):
                 st.session_state.prog_access_granted = False
                 st.session_state.page = "MAIN_APP"
                 st.rerun()
@@ -1013,19 +976,32 @@ elif st.session_state.page == "VERIF_USER_ADM":
         u_check = st.text_input("Nom de l'utilisateur")
         p_check = st.text_input("Mot de Passe USER ADM", type="password")
 
-        if st.button("VÉRIFIER LES DROITS"):
-            df_c = pd.read_csv(FILE_CLIENTS, dtype=str)
-            match = df_c[(df_c["name"] == u_check) & (df_c["pw_user_adm"] == p_check)]
-            if not match.empty:
-                st.session_state.temp_user = match.iloc[0].to_dict()
-                st.session_state.page = "EDIT_PROFIL"
-                st.rerun()
+        if st.button("VÉRIFIER LES DROITS", use_container_width=True):
+            # MODIFICATION CLOUD : On vérifie directement dans la table des utilisateurs
+            df_c = charger_table("utilisateurs") # Assure-toi que le nom de la table est correct
+            
+            if not df_c.empty:
+                # On cherche la correspondance (on s'assure que tout est en texte pour comparer)
+                match = df_c[
+                    (df_c["name"].astype(str) == u_check) & 
+                    (df_c["pw_user_adm"].astype(str) == p_check)
+                ]
+                
+                if not match.empty:
+                    # On stocke les infos trouvées pour la page d'édition
+                    st.session_state.temp_user = match.iloc[0].to_dict()
+                    st.session_state.page = "EDIT_PROFIL"
+                    st.success("Droits vérifiés avec succès !")
+                    time.sleep(0.5)
+                    st.rerun()
+                else:
+                    st.error("Identifiants ADM incorrects.")
             else:
-                st.error("Identifiants incorrects.")
+                st.error("Base de données utilisateurs vide ou inaccessible.")
+
         if st.button("⬅️ RETOUR"):
             st.session_state.page = "ACCEUIL"
             st.rerun()
-
 # --- 14. PAGE : EDIT PROFIL ---
 elif st.session_state.page == "EDIT_PROFIL":
     with st.container(border=True):
@@ -1039,7 +1015,7 @@ elif st.session_state.page == "EDIT_PROFIL":
         )
         new_p3 = st.text_input("NOUVEAU PW (USER ADM)", value=usr["pw_user_adm"])
 
-        if st.button("💾 ENREGISTRER LES MODIFICATIONS"):
+        if st.button("💾 ENREGISTRER LES MODIFICATIONS", use_container_width=True):
             # Vérification si des changements ont été apportés
             if (
                 new_p1 == usr["pw_open_modify"]
@@ -1048,25 +1024,28 @@ elif st.session_state.page == "EDIT_PROFIL":
             ):
                 st.info("Aucune modification n'a été effectuée.")
             else:
-                # Procéder à la sauvegarde
-                df_clients = pd.read_csv(FILE_CLIENTS, dtype=str)
-                df_clients.loc[
-                    df_clients["name"] == usr["name"],
-                    ["pw_open_modify", "pw_adm_print_prog", "pw_user_adm"],
-                ] = [new_p1, new_p2, new_p3]
-                df_clients.to_csv(FILE_CLIENTS, index=False)
+                try:
+                    # MODIFICATION CLOUD : Mise à jour directe dans Supabase
+                    supabase.table("utilisateurs")\
+                        .update({
+                            "pw_open_modify": new_p1,
+                            "pw_adm_print_prog": new_p2,
+                            "pw_user_adm": new_p3
+                        })\
+                        .eq("name", usr["name"])\
+                        .execute()
 
-                # Mise à jour de l'état temporaire pour refléter les nouveaux changements
-                st.session_state.temp_user.update(
-                    {
+                    # Mise à jour de l'état temporaire session
+                    st.session_state.temp_user.update({
                         "pw_open_modify": new_p1,
                         "pw_adm_print_prog": new_p2,
                         "pw_user_adm": new_p3,
-                    }
-                )
+                    })
 
-                st.success("Mise à jour réussie ! Cliquez sur RETOUR pour quitter.")
-                # Note : On ne redirige plus ici, l'utilisateur reste sur la page.
+                    st.success("✅ Mise à jour réussie dans le Cloud !")
+                    time.sleep(1)
+                except Exception as e:
+                    st.error(f"Erreur lors de la mise à jour : {e}")
 
         if st.button("⬅️ RETOUR"):
             st.session_state.page = "ACCEUIL"
