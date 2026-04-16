@@ -217,7 +217,7 @@ elif st.session_state.page == "ACCEUIL":
         u_n = st.text_input("USER NAME", placeholder="Entrez votre nom...", disabled=is_maintenance)
         u_p = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password", disabled=is_maintenance)
 
-       if st.button("🚀 OPEN APP", use_container_width=True, disabled=is_maintenance):
+    if st.button("🚀 OPEN APP", use_container_width=True, disabled=is_maintenance):
             # REMPLACE pd.read_csv PAR CECI :
             df = charger_table("clients")
             
