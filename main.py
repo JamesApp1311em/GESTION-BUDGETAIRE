@@ -247,22 +247,40 @@ elif st.session_state.page == "ACCEUIL":
                     st.error("❌ Nom d'utilisateur ou mot de passe incorrect.")
             else:
                 st.error("❌ Impossible de joindre la base de données ou table vide.")
-    st.write("---")
-        # Section des boutons de navigation
+    # --- PAGE : ACCUEIL (CORRECTEMENT ALIGNÉE) ---
+if st.session_state.page == "ACCEUIL":
+    # Conteneur principal pour le login
+    with st.container(border=True):
+        st.markdown("<h1 style='text-align: center;'>🔐 ACCÈS AU SYSTÈME</h1>", unsafe_allow_html=True)
+        
+        u_n = st.text_input("USER NAME", placeholder="Entrez votre nom...")
+        u_p = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password")
+        
+        # Bouton principal
+        if st.button("🚀 OPEN APP", use_container_width=True, disabled=is_maintenance):
+            df = charger_table("clients")
+            # ... (ta logique de vérification ici)
+            
+        st.write("---")
+        st.markdown("<h3 style='text-align: center;'>Autres options d'accès</h3>", unsafe_allow_html=True)
+        
+        # CETTE LIGNE DOIT ÊTRE ALIGNÉE AVEC st.write CI-DESSUS
         col_nav1, col_nav2, col_nav3 = st.columns(3)
         
-        if col_nav1.button("🔑 LOGIN", use_container_width=True, disabled=is_maintenance):
-            st.session_state.page = "LOGIN"
-            st.rerun()
-            
-        if col_nav2.button("🛡️ APP ADM", use_container_width=True):
-            st.session_state.page = "VERIF_ADM"
-            st.rerun()
-            
-        if col_nav3.button("👤 USER ADM", use_container_width=True, disabled=is_maintenance):
-            st.session_state.page = "VERIF_USER_ADM"
-            st.rerun()
-
+        with col_nav1:
+            if st.button("🔑 LOGIN", use_container_width=True, disabled=is_maintenance):
+                st.session_state.page = "LOGIN"
+                st.rerun()
+                
+        with col_nav2:
+            if st.button("🛡️ APP ADM", use_container_width=True):
+                st.session_state.page = "VERIF_ADM"
+                st.rerun()
+                
+        with col_nav3:
+            if st.button("👤 USER ADM", use_container_width=True, disabled=is_maintenance):
+                st.session_state.page = "VERIF_USER_ADM"
+                st.rerun()
     # Message de fin de maintenance
     if "just_restored" in st.session_state and st.session_state.just_restored:
         st.balloons()
