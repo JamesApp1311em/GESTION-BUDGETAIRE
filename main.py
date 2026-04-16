@@ -266,27 +266,21 @@ elif st.session_state.page == "LOGIN":
             "<h2 style='text-align: center;'>⚙️ CRÉATION DE NOUVEAU COMPTE</h2>",
             unsafe_allow_html=True,
         )
-        st.info(
-            "Veuillez définir vos informations d'identification selon la nomenclature du système."
-        )
+        st.info("Veuillez définir vos informations d'identification selon la nomenclature du système.")
 
         new_n = st.text_input("USER NAME")
         new_p1 = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password")
         new_p2 = st.text_input("PASSWORD (ADM / PRINT / PROGRESS)", type="password")
         new_p3 = st.text_input("PASSWORD (USER ADM)", type="password")
 
-        # --- SUPPRIME LA LIGNE "if st.button(" QUI ÉTAIT ICI ---
-
-if st.button("💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="primary"):
+        # --- ICI LES BOUTONS ONT DES ESPACES POUR RESTER DANS LE BLOC LOGIN ---
+        if st.button("💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="primary"):
             if new_n and new_p1 and new_p2 and new_p3:
-                # 1. On récupère la liste des clients depuis le Cloud
                 df_clients = charger_table("clients")
                 
-                # 2. On vérifie si le nom existe déjà dans la base
                 if not df_clients.empty and new_n in df_clients["name"].values:
                     st.error("❌ Ce nom d'utilisateur existe déjà sur le Cloud.")
                 else:
-                    # 3. Préparation des données
                     new_entry = {
                         "name": new_n,
                         "pw_open_modify": new_p1,
@@ -295,7 +289,6 @@ if st.button("💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="p
                         "status": "Active",
                     }
                     
-                    # 4. Envoi vers Supabase (ALIGNÉ AVEC new_entry)
                     succes = sauvegarder_ligne("clients", new_entry)
                     
                     if succes:
@@ -306,10 +299,9 @@ if st.button("💾 ENREGISTRER L'UTILISATEUR", use_container_width=True, type="p
             else:
                 st.warning("⚠️ Veuillez remplir tous les champs obligatoires.")
 
-if st.button("⬅️ RETOUR À L'ACCUEIL", use_container_width=True):
+        if st.button("⬅️ RETOUR À L'ACCUEIL", use_container_width=True):
             st.session_state.page = "ACCEUIL"
             st.rerun()
-
 # --- 7. PAGE : VERIF ADMIN ---
 elif st.session_state.page == "VERIF_ADM":
     with st.container(border=True):
