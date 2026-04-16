@@ -248,14 +248,17 @@ elif st.session_state.page == "ACCEUIL":
             else:
                 st.error("❌ Impossible de joindre la base de données ou table vide.")
     st.write("---")
-        #st.write("### Autres options d'accès")
+        # Section des boutons de navigation
         col_nav1, col_nav2, col_nav3 = st.columns(3)
+        
         if col_nav1.button("🔑 LOGIN", use_container_width=True, disabled=is_maintenance):
             st.session_state.page = "LOGIN"
             st.rerun()
+            
         if col_nav2.button("🛡️ APP ADM", use_container_width=True):
             st.session_state.page = "VERIF_ADM"
             st.rerun()
+            
         if col_nav3.button("👤 USER ADM", use_container_width=True, disabled=is_maintenance):
             st.session_state.page = "VERIF_USER_ADM"
             st.rerun()
