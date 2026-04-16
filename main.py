@@ -180,7 +180,7 @@ def create_pdf(row):
     # Pied de page
     pdf.ln(10)
     pdf.set_font("Arial", "I", 8)
-    pdf.cell(190, 5, f"Généré le {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}", 0, 1, "R")
+    pdf.cell(190, 5, f"Généré le {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 0, 1, "R")
 
     pdf_output = pdf.output(dest="S")
     if isinstance(pdf_output, str):
