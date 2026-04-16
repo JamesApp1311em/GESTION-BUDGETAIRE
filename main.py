@@ -204,7 +204,7 @@ if st.session_state.confirm_exit:
             st.rerun()
 
 # --- 5. PAGE : ACCEUIL ---
-elif st.session_state.page == "ACCEUIL":
+if st.session_state.page == "ACCEUIL":
     # --- BLOCAGE MAINTENANCE ---
     if is_maintenance:
         st.error("🚨 L'APPLICATION EST SOUS MAINTENANCE VEUILLEZ PATIENTER S'IL VOUS PLAIT")
@@ -214,32 +214,26 @@ elif st.session_state.page == "ACCEUIL":
             "<h1 class='main-title' style='text-align: center;'>🔐 ACCÈS AU SYSTÈME</h1>", 
             unsafe_allow_html=True
         )
-        u_n = st.text_input("USER NAME", placeholder="Entrez votre nom...", disabled=is_maintenance)
-        u_p = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password", disabled=is_maintenance)
+        
+        # Utilisation de keys uniques pour éviter les erreurs de duplication
+        u_n = st.text_input("USER NAME", placeholder="Entrez votre nom...", disabled=is_maintenance, key="acc_user")
+        u_p = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password", disabled=is_maintenance, key="acc_pass")
 
-    if st.button("🚀 OPEN APP", use_container_width=True, disabled=is_maintenance):
-            # REMPLACE pd.read_csv PAR CECI :
-            df = charger_table("clients")
+        if st.button("🚀 OPEN APP", use_container_width=True, disabled=is_maintenance, key="acc_btn_open"):
+            df = charger_table("clients") # Connexion Supabase
             
             if not df.empty:
-                # On s'assure que tout est en texte pour la comparaison
                 df = df.astype(str).fillna("")
                 user_match = df[df["name"].str.strip() == str(u_n).strip()]
 
-                if (
-                    not user_match.empty
-                    and user_match.iloc[0]["pw_open_modify"] == str(u_p).strip()
-                ):
-                    # Vérification du statut (Active)
+                if not user_match.empty and user_match.iloc[0]["pw_open_modify"] == str(u_p).strip():
                     if user_match.iloc[0]["status"].lower() in ["true", "active"]:
-                        st.session_state.update(
-                            {
-                                "current_user": u_n,
-                                "user_pw_open": str(u_p).strip(),
-                                "user_pw_adm_extra": user_match.iloc[0]["pw_adm_print_prog"],
-                                "page": "MAIN_APP",
-                            }
-                        )
+                        st.session_state.update({
+                            "current_user": u_n,
+                            "user_pw_open": str(u_p).strip(),
+                            "user_pw_adm_extra": user_match.iloc[0]["pw_adm_print_prog"],
+                            "page": "MAIN_APP",
+                        })
                         st.rerun()
                     else:
                         st.error("⚠️ Votre compte est bloqué. Contactez l'administrateur.")
@@ -247,40 +241,26 @@ elif st.session_state.page == "ACCEUIL":
                     st.error("❌ Nom d'utilisateur ou mot de passe incorrect.")
             else:
                 st.error("❌ Impossible de joindre la base de données ou table vide.")
-    # --- PAGE : ACCUEIL (CORRECTEMENT ALIGNÉE) ---
-if st.session_state.page == "ACCEUIL":
-    # Conteneur principal pour le login
-    with st.container(border=True):
-        st.markdown("<h1 style='text-align: center;'>🔐 ACCÈS AU SYSTÈME</h1>", unsafe_allow_html=True)
-        
-        u_n = st.text_input("USER NAME", placeholder="Entrez votre nom...")
-        u_p = st.text_input("PASSWORD (OPEN APP / MODIFY)", type="password")
-        
-        # Bouton principal
-        if st.button("🚀 OPEN APP", use_container_width=True, disabled=is_maintenance):
-            df = charger_table("clients")
-            # ... (ta logique de vérification ici)
-            
+
         st.write("---")
         st.markdown("<h3 style='text-align: center;'>Autres options d'accès</h3>", unsafe_allow_html=True)
         
-        # CETTE LIGNE DOIT ÊTRE ALIGNÉE AVEC st.write CI-DESSUS
+        # Navigation secondaire
         col_nav1, col_nav2, col_nav3 = st.columns(3)
         
         with col_nav1:
-            if st.button("🔑 LOGIN", use_container_width=True, disabled=is_maintenance):
+            if st.button("🔑 LOGIN", use_container_width=True, disabled=is_maintenance, key="acc_btn_login"):
                 st.session_state.page = "LOGIN"
                 st.rerun()
-                
         with col_nav2:
-            if st.button("🛡️ APP ADM", use_container_width=True):
+            if st.button("🛡️ APP ADM", use_container_width=True, key="acc_btn_adm"):
                 st.session_state.page = "VERIF_ADM"
                 st.rerun()
-                
         with col_nav3:
-            if st.button("👤 USER ADM", use_container_width=True, disabled=is_maintenance):
+            if st.button("👤 USER ADM", use_container_width=True, disabled=is_maintenance, key="acc_btn_user"):
                 st.session_state.page = "VERIF_USER_ADM"
                 st.rerun()
+
     # Message de fin de maintenance
     if "just_restored" in st.session_state and st.session_state.just_restored:
         st.balloons()
