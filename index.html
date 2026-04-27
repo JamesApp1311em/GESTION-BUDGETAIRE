@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="fr"><head>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
     <meta charset="UTF-8">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
@@ -19,9 +21,20 @@
             top: -48px; 
             left: 0;
             width: 100%;
-            /* J'ai mis +95px au lieu de +48px pour bien cacher la barre du bas */
             height: calc(100% + 95px); 
             border: none;
         }
-    </style></head><body>
-    <iframe src="https://gestion-budgetaire.streamlit.app/?embed=true"></iframe></body></html>
+    </style>
+</head>
+<body>
+    <iframe src="https://gestion-budgetaire.streamlit.app/?embed=true"></iframe>
+
+    <script>
+        window.onload = function() {
+            fetch('https://gestion-budgetaire.streamlit.app', { mode: 'no-cors' })
+            .then(() => console.log("Réveil envoyé"))
+            .catch(() => console.log("Erreur réveil"));
+        };
+    </script>
+</body>
+</html>
